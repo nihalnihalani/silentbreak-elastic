@@ -102,7 +102,7 @@ ELASTIC_MCP_URL=
 ```
 silentbreak-elastic/
 ├── agents/            # Sentinel, RootCause, Guardian, Scribe (ADK definitions + prompts)
-├── mcp/               # Elastic MCP client config + tool wrappers
+├── integrations/      # Elastic MCP client config + tool wrappers (mock + real)
 ├── scripts/           # seed_baseline.py, deploy_agents.py, inject_drift.py
 ├── dashboard/         # React: green tile, contradiction overlay, quarantine counter
 ├── webhook/           # Cloud Run entrypoint (pipeline.completed)

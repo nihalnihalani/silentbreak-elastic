@@ -8,8 +8,12 @@ runs in about 60 seconds, leaving room for setup and the reverse.
 - [ ] Window at 1280x800, browser at 100% zoom, no bookmarks bar, no other tabs.
 - [ ] Stack fresh: `make up && make seed && make inject` (inject again if you did a dry run;
       a remediated run consumes the poison).
-- [ ] Server: `SILENTBREAK_MODE=real make web` (badge must read DETERMINISTIC FALLBACK
-      unless you have a GOOGLE_API_KEY in `.env`, in which case it reads ADK).
+- [ ] Server: `SILENTBREAK_MODE=real make web`. For the ADK badge (the strongest take —
+      this is how the live verified run was recorded), put Gemini credentials in `.env`:
+      either `GOOGLE_API_KEY=...`, or Vertex ADC — `GOOGLE_GENAI_USE_VERTEXAI=1`,
+      `GOOGLE_CLOUD_PROJECT=<your-project>`, `GOOGLE_CLOUD_LOCATION=global` after
+      `gcloud auth application-default login`. With neither, the badge reads
+      DETERMINISTIC FALLBACK.
 - [ ] Second terminal visible for the cold open: `curl -s localhost:9200/_cat/aliases` and
       `python3 scripts/run_demo.py` ready in history.
 - [ ] Check the ENGINE badge now and pick the matching 0:20 narration below. Never read
@@ -68,6 +72,9 @@ Say: "The root cause agent diffs today's index mapping against yesterday's. Minu
 plus gross_amount. The loader kept reading amount, so ten thousand rows carry no revenue:
 about six hundred seventy six thousand dollars invisible downstream, and it labels that
 number an estimate."
+(Mock-mode take: the seeded world differs — say "about four hundred thirty thousand
+dollars" instead, and read the exact figure off the screen. The Don'ts apply: never
+narrate a number the screen doesn't show.)
 
 ### 1:35 to 2:10 | The stamp (the centerpiece, slow down here)
 

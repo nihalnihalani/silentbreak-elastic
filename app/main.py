@@ -16,6 +16,7 @@ import os
 import random
 import statistics
 import sys
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -59,6 +60,15 @@ class RunRecord:
     yesterday_index: str | None = None
     reversed: bool = False
     incident: dict | None = None
+    started_at: float = field(default_factory=time.monotonic)
+
+
+# On Cloud Run, CPU is throttled when no request is in flight, so a run whose
+# spectator closed the tab can freeze mid-loop and wedge the singleton run
+# state for the next visitor. A fresh /api/run reaps any active run older
+# than this instead of returning 409. Reaping is safe pre-approval (no token,
+# no writes); post-approval the loop runs to completion in seconds.
+STALE_RUN_SECONDS = 180
 
 
 RUNS: dict[str, RunRecord] = {}
@@ -93,6 +103,15 @@ def active_record() -> RunRecord | None:
         rec = RUNS[run_id]
         if rec.task is not None and not rec.task.done():
             return rec
+    return None
+
+
+def reap_or_409(rec: RunRecord) -> JSONResponse | None:
+    """409 while a fresh run is active; cancel and clear a stale one."""
+    if time.monotonic() - rec.started_at < STALE_RUN_SECONDS:
+        return JSONResponse({"error": "run_active", "run_id": rec.run_id}, status_code=409)
+    rec.task.cancel()
+    rec.phase = "vetoed"
     return None
 
 
@@ -289,8 +308,8 @@ def api_state():
 
 @app.post("/api/run")
 async def api_run(request: Request):
-    if (rec := active_record()) is not None:
-        return JSONResponse({"error": "run_active", "run_id": rec.run_id}, status_code=409)
+    if (rec := active_record()) is not None and (resp := reap_or_409(rec)) is not None:
+        return resp
     try:
         client = get_client()
     except Exception as exc:
@@ -310,8 +329,8 @@ async def api_run(request: Request):
 @app.post("/pipeline-completed")
 async def pipeline_completed(request: Request):
     """Compat webhook: a pipeline reports completion; SilentBreak examines it."""
-    if (rec := active_record()) is not None:
-        return JSONResponse({"error": "run_active", "run_id": rec.run_id}, status_code=409)
+    if (rec := active_record()) is not None and (resp := reap_or_409(rec)) is not None:
+        return resp
     body = await request.json()
     event = {
         "day": body["day"],

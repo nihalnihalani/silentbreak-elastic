@@ -318,17 +318,32 @@ async def run_adk(client, event: dict, emit: Emit, run_id: str, *,
             payload = _extract_json(text)
             author = getattr(ev, "author", "")
             if author == "sentinel" and payload:
+                # Gemini reports what it saw; the audited arithmetic on the
+                # stream comes from the baseline store, not the model. LLMs
+                # flub division, and the operator gate deserves real numbers.
+                def _audited(metric: str, value: float, fallback: dict) -> dict:
+                    base = baselines.get(metric)
+                    if base is None or value is None:
+                        return fallback
+                    z = abs(float(value) - base["mean"]) / base["std"]
+                    return {"baseline_mean": float(base["mean"]),
+                            "baseline_std": float(base["std"]), "z": z}
                 for c in payload.get("checks", []):
+                    audited = _audited(c.get("metric"), c.get("value"), {
+                        "baseline_mean": c.get("baseline_mean"),
+                        "baseline_std": c.get("baseline_std"), "z": c.get("z")})
                     await emit("sentinel_check", {
                         "metric": c.get("metric"), "value": c.get("value"),
-                        "baseline_mean": c.get("baseline_mean"),
-                        "baseline_std": c.get("baseline_std"),
-                        "z": c.get("z"), "breach": bool(c.get("breach"))})
+                        **audited, "breach": bool(c.get("breach"))})
                 con = payload.get("contradiction")
                 if con:
+                    audited = _audited(con["metric"], con["value"], {
+                        "baseline_mean": float(con["baseline_mean"]),
+                        "z": float(con["z"])})
                     contradiction_obj = sentinel.Contradiction(
                         metric=str(con["metric"]), value=float(con["value"]),
-                        baseline_mean=float(con["baseline_mean"]), z=float(con["z"]),
+                        baseline_mean=float(audited["baseline_mean"]),
+                        z=float(audited["z"]),
                         pipeline_status=str(status.get("status", "UNKNOWN")))
                     await emit("contradiction", {
                         "headline": contradiction_obj.headline(),

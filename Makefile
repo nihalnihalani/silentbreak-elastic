@@ -50,4 +50,5 @@ smoke: check-python    ## End-to-end real-mode test: seed->inject->detect->flip-
 	PYTHON=$(PYTHON) bash scripts/smoke.sh
 
 deploy-cloud-run: ## Build + deploy the hosted (mock-mode) UI to Cloud Run
-	gcloud run deploy silentbreak --source . --region us-central1 --allow-unauthenticated
+	gcloud run deploy silentbreak --source . --region us-central1 --allow-unauthenticated \
+		--no-cpu-throttling --max-instances 1 --timeout 3600

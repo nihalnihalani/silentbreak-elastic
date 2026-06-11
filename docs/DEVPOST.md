@@ -1,6 +1,6 @@
 # Devpost submission text (paste-ready)
 
-> Fill the two placeholders at the bottom (hosted URL, video URL) after deployment and
+> One placeholder left at the bottom (the video URL) — fill it after recording, and
 > recording. Everything else is final copy. Keep the radical-honesty voice if you edit.
 
 ---

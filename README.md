@@ -4,7 +4,7 @@
 
 ![The operator gate: live ADK · Gemini 3.5 Flash run paused at the press-and-hold APPROVE stamp](docs/img/ui-gate.png)
 
-*A live run captured on 2026-06-11 — engine badge `REAL / ADK · GEMINI-3.5-FLASH`, the agent rail lit, the EXAMINER RECALLS memory line, z=132 inked on the needle trace, MCP tool calls on the teletype, and the run paused at the operator gate. The [resolved state](docs/img/ui-resolved.png) shows Gemini's filed report: `FILED SB-2026-06-11 · ENGINE adk · REPORT BY gemini-3.5-flash`.*
+*A live run captured on 2026-06-11 — engine badge `REAL / ADK · GEMINI-3.5-FLASH`, the agent rail lit, the EXAMINER RECALLS memory line, MCP tool calls on the teletype, and the run paused at the operator gate. The body text's z=40 is `null_rate` (the floor-regularized headline metric); the z=132 inked here is `avg_amount`, which Gemini chose to lead with on this run. Sharp eyes will spot the chart annotation (z=48) disagreeing with the teletype's audited arithmetic (z=39.9): that frame emitted Gemini's self-reported z — exactly why the deterministic math, not the model, feeds the approval gate, and why `sentinel_check` events are now recomputed server-side from the baseline store before they reach the stream. The [resolved state](docs/img/ui-resolved.png) shows Gemini's filed report: `FILED SB-2026-06-11 · ENGINE adk · REPORT BY gemini-3.5-flash`.*
 
 **Live demo:** https://silentbreak-941948267289.us-central1.run.app (mock mode, zero secrets, fully interactive — press RUN EXAMINATION)
 
@@ -36,7 +36,7 @@ Why hand-rolled z-scores instead of Elastic ML anomaly detection: an operator ca
 
 ## The load-bearing map
 
-Every stage names the exact capability that powers it. Remove Elastic and there is no detector, no diagnosis, no actuator, and no memory. Remove the Google stack and there is no reasoning engine. (The pairing is not accidental: Elastic is the 2026 Google Cloud Partner of the Year for Data Management & AI, its fifth year running.)
+Every stage names the exact capability that powers it. Remove Elastic and there is no detector, no diagnosis, no actuator, and no memory. Remove the Google stack and there is no reasoning engine.
 
 | Loop stage | Elastic capability | Google capability |
 |---|---|---|
@@ -49,7 +49,7 @@ Every stage names the exact capability that powers it. Remove Elastic and there 
 | Verify | ES&#124;QL through the alias via MCP | same event stream either way |
 | Record | incident doc into `silentbreak-incidents` (the memory the next run recalls) | ADK `SequentialAgent` orchestrates Sentinel, RootCause, Guardian, Scribe |
 
-**The MCP story, stated plainly:** the production path is the **Elastic Agent Builder MCP endpoint** (`{KIBANA_URL}/api/agent_builder/mcp`, Elastic 9.2+ and Serverless, GA January 2026), which exposes ES|QL-backed tools over MCP. The standalone container (`docker.elastic.co/mcp/elasticsearch`) is the local-dev convenience for the docker-compose stack — it has been deprecated since v0.4.6 (October 2025) in favor of the Agent Builder endpoint, and we say so rather than pretend otherwise. Both are reachable through the same two variables (`MCP_URL`, `MCP_AUTH_HEADER`), so swapping local for production is configuration, not code.
+**The MCP story, stated plainly:** the production path is the **Elastic Agent Builder MCP endpoint** (`{KIBANA_URL}/api/agent_builder/mcp`, Elastic 9.2+ and Serverless), which exposes ES|QL-backed tools over MCP. The standalone container (`docker.elastic.co/mcp/elasticsearch`) is the local-dev convenience for the docker-compose stack — its own startup log announces it has been superseded by the Agent Builder endpoint, and we say so rather than pretend otherwise. Both are reachable through the same two variables (`MCP_URL`, `MCP_AUTH_HEADER`), so swapping local for production is configuration, not code.
 
 **The honest read/write split:** in real mode all *reads* (ES|QL stats, mappings, status doc, verification query) go through the Elastic MCP server (streamable HTTP). The MCP server exposes no write tools, so *writes* (seed, quarantine reindex, repair reindex, alias flip, incident doc) go through elasticsearch-py directly. MCP tool schemas are discovered at runtime from `tools/list` and locked by the smoke test: `esql{query}`, `get_mappings{index}`, `search{fields,index,query_body}`, `list_indices{index_pattern}`. Two stated exceptions: (1) if the MCP `search` response arrives in an unexpected shape, the null-count helper falls back to a direct `_count` (still a real Elasticsearch read, just not via MCP) so a run survives; (2) `alias_target()` reads the current alias target via elasticsearch-py, not MCP, during run-start and verify. The code comments say so in both places.
 
@@ -141,7 +141,7 @@ make deploy-cloud-run
 
 The root `Dockerfile` installs only `requirements-serve.txt` (fastapi, uvicorn, elasticsearch, mcp, dotenv) to keep the image small. The ADK/Gemini engine needs the full `requirements.txt`, so the hosted service always runs the labeled deterministic engine; the loop, the gate, and the UI are identical.
 
-**Real mode on cloud** is configuration only: set `SILENTBREAK_MODE=real`, `ES_URL` plus `ELASTIC_API_KEY` (or `ELASTIC_CLOUD_ID`), and point `MCP_URL` at the production path: the **Elastic Agent Builder MCP endpoint** at `{KIBANA_URL}/api/agent_builder/mcp` (Elastic 9.2+ and Serverless, GA January 2026); pass its key via `MCP_AUTH_HEADER="ApiKey ..."`. The standalone container used in Quickstart B is deprecated since v0.4.6 (October 2025) in favor of exactly this endpoint, which is why both are supported through the same two variables: local dev keeps its zero-friction compose stack, production gets the supported path. Gemini credentials work either way: `GOOGLE_API_KEY`, or Vertex ADC (`GOOGLE_GENAI_USE_VERTEXAI=1` plus a project — the natural fit on Cloud Run). Copy `.env.example` to `.env` to configure everything.
+**Real mode on cloud** is configuration only: set `SILENTBREAK_MODE=real`, `ES_URL` plus `ELASTIC_API_KEY` (or `ELASTIC_CLOUD_ID`), and point `MCP_URL` at the production path: the **Elastic Agent Builder MCP endpoint** at `{KIBANA_URL}/api/agent_builder/mcp` (Elastic 9.2+ and Serverless); pass its key via `MCP_AUTH_HEADER="ApiKey ..."`. The standalone container used in Quickstart B announces in its own logs that it is superseded by exactly this endpoint, which is why both are supported through the same two variables: local dev keeps its zero-friction compose stack, production gets the supported path. Gemini credentials work either way: `GOOGLE_API_KEY`, or Vertex ADC (`GOOGLE_GENAI_USE_VERTEXAI=1` plus a project — the natural fit on Cloud Run). Copy `.env.example` to `.env` to configure everything.
 
 ## The HITL gate: a stamp, not a checkbox
 
@@ -183,7 +183,7 @@ The beat-by-beat recording plan lives in [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.
 - [x] Hosted project URL: https://silentbreak-941948267289.us-central1.run.app (mock mode, zero secrets) — must stay alive through the judging window (Jun 22 – Jul 6)
 - [x] Public repo with detectable OSS license (MIT at repo root, see below)
 - [ ] About 3 minute demo video following `docs/DEMO_SCRIPT.md`
-- [x] Required tech stated plainly: Gemini 3.5 Flash plus ADK 2.x — the agent framework of the Google Cloud Agent Builder stack (now part of the Gemini Enterprise Agent Platform, the Cloud Next 2026 name for Vertex AI Agent Builder) — plus the Elastic Agent Builder MCP endpoint / Elastic MCP container
+- [x] Required tech stated plainly: Gemini 3.5 Flash plus ADK 2.x — the agent framework of the Google Cloud Agent Builder / Gemini Enterprise Agent Platform family — plus the Elastic Agent Builder MCP endpoint / Elastic MCP container
 - [ ] Devpost text description filled from `docs/DEVPOST.md` (includes technologies, data sources, findings and learnings)
 - [ ] Human-in-the-loop oversight demonstrated on camera (the stamp, the reject path, the reverse)
 - [x] README claims match repo reality (this file — every checked box above was verified by execution, not assertion)

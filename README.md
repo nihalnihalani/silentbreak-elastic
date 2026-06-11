@@ -113,7 +113,7 @@ make venv        # one-time: .venv + fastapi/uvicorn and the real-mode deps
 make web         # http://localhost:8000  ->  press RUN EXAMINATION
 ```
 
-Once deployed (Quickstart C), the hosted Cloud Run URL serves exactly this: fully interactive, deterministic engine, in-memory Elastic, real approval gate.
+The hosted Cloud Run URL goes further than this quickstart: it runs **real mode** — real Elasticsearch, the Elastic MCP server, and the live ADK/Gemini engine (see Quickstart C).
 
 ## Quickstart B: local real mode (Elasticsearch + Elastic MCP container)
 
@@ -141,14 +141,14 @@ make smoke       # prints SMOKE PASS on a green stack
 
 ## Quickstart C: cloud
 
-**Hosted URL (what judges click):** the Cloud Run image defaults to mock mode so it needs zero secrets and is fully interactive. Deploying is one command (run it yourself; see the submission checklist for status):
+**Hosted URL (what judges click) runs REAL mode end to end:** a real Elasticsearch 9.4.2 (security enabled) and the Elastic MCP server, both on Cloud Run in the same project, with the **ADK `SequentialAgent` engine on `gemini-3.5-flash` via Vertex ADC** — `/api/healthz` reports `{"mode":"real","engine":"adk"}`. The server arms the examination world automatically before each run (baseline partitions, today's silently corrupted partition, the SUCCESS status doc), so every RUN EXAMINATION click yields a complete, repeatable examination with no manual seeding — incident memory is preserved across re-arms. Live-endpoint guards: a per-IP rate limit and a daily Gemini budget; if the budget is spent, runs continue on the deterministic engine with the reason labeled honestly in the stream.
+
+The image (root `Dockerfile`) bundles the full `requirements.txt` including the ADK stack; a bare `docker run` with zero configuration still boots the self-contained mock mode. Deploying is one command (run it yourself; see the submission checklist for status):
 
 ```
 make deploy-cloud-run
 # = gcloud run deploy silentbreak --source . --region us-central1 --allow-unauthenticated
 ```
-
-The root `Dockerfile` installs only `requirements-serve.txt` (fastapi, uvicorn, elasticsearch, mcp, dotenv) to keep the image small. The ADK/Gemini engine needs the full `requirements.txt`, so the hosted service always runs the labeled deterministic engine; the loop, the gate, and the UI are identical.
 
 **Real mode on cloud** is configuration only: set `SILENTBREAK_MODE=real`, `ES_URL` plus `ELASTIC_API_KEY` (or `ELASTIC_CLOUD_ID`), and point `MCP_URL` at the production path: the **Elastic Agent Builder MCP endpoint** at `{KIBANA_URL}/api/agent_builder/mcp` (Elastic 9.2+ and Serverless); pass its key via `MCP_AUTH_HEADER="ApiKey ..."`. The standalone container used in Quickstart B announces in its own logs that it is superseded by exactly this endpoint, which is why both are supported through the same two variables: local dev keeps its zero-friction compose stack, production gets the supported path. Gemini credentials work either way: `GOOGLE_API_KEY`, or Vertex ADC (`GOOGLE_GENAI_USE_VERTEXAI=1` plus a project — the natural fit on Cloud Run). Copy `.env.example` to `.env` to configure everything.
 
@@ -169,11 +169,11 @@ Everything above the Roadmap heading is exercised by code in this repo:
 - `tests/` runs under GitHub Actions CI on every push.
 - The web UI loop (run, SSE stream, press-and-hold approve, flip, repair, verify, reverse; plus the reject path with zero writes) was verified in a real browser in both mock mode and real mode with the deterministic engine.
 - The ADK/Gemini engine path (`agents/adk_pipeline.py`) was **executed live on 2026-06-11** against `gemini-3.5-flash` via Vertex AI ADC: full examination through the real Elastic stack — memory recall of the prior incident (`incident_number: 2`), contradiction, diagnosis, the press-and-hold gate, token-gated quarantine + alias flip, repair reindex of 10,000 rows, verify, and an incident doc with `report_author: gemini-3.5-flash`. The screenshots at the top of this file are from that run. If the ADK engine fails *before* the gate, the run falls back to the labeled deterministic engine; if it fails *after* approval, the run ends with an error rather than re-running — an operator's approval is never spent twice. The engine in use is always labeled honestly in the SSE stream, the UI badge, and the incident doc (`engine`, `report_author`).
-- The hosted Cloud Run URL (https://silentbreak-941948267289.us-central1.run.app) is deployed and was verified serving the interactive mock-mode UI. (One platform quirk, stated honestly: Google's frontend reserves `/healthz` on `run.app` domains, so the health route is `/api/healthz`.)
+- The hosted Cloud Run URL (https://silentbreak-941948267289.us-central1.run.app) serves **real mode**: `/api/healthz` reports `{"mode":"real","engine":"adk"}`, and the full live loop (auto-arm → ADK examination on `gemini-3.5-flash` → gate → quarantine → alias flip → repair → verify → reverse) was executed three consecutive times against the deployed revision on 2026-06-12, each pass ending `resolved` with `report_author: gemini-3.5-flash` and a clean reverse. (One platform quirk, stated honestly: Google's frontend reserves `/healthz` on `run.app` domains, so the health route is `/api/healthz`.)
 
 ## Scope and Roadmap
 
-In scope and working: the full recall, detect, diagnose, approve, quarantine, flip, repair, verify, record, reverse loop in mock and local-real modes; the Polygraph UI with the four-lamp agent rail; the smoke suite; tests and CI; the Cloud Run image.
+In scope and working: the full recall, detect, diagnose, approve, quarantine, flip, repair, verify, record, reverse loop in mock, local-real, and hosted-real modes (the hosted URL runs the live ADK/Gemini engine against real Elasticsearch); the Polygraph UI with the four-lamp agent rail; server-side auto-arm with rate-limit and Gemini-budget guards; the smoke suite; tests and CI; the Cloud Run image.
 
 Roadmap (not implemented, listed honestly):
 
@@ -189,7 +189,7 @@ The beat-by-beat recording plan lives in [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.
 
 ## Devpost submission checklist
 
-- [x] Hosted project URL: https://silentbreak-941948267289.us-central1.run.app (mock mode, zero secrets) — must stay alive through the judging window (Jun 22 – Jul 6)
+- [x] Hosted project URL: https://silentbreak-941948267289.us-central1.run.app (REAL mode: live ES + Elastic MCP + ADK/Gemini via Vertex ADC) — must stay alive through the judging window (Jun 22 – Jul 6)
 - [x] Public repo with detectable OSS license (MIT at repo root, see below)
 - [ ] About 3 minute demo video following `docs/DEMO_SCRIPT.md`
 - [x] Required tech stated plainly: Gemini 3.5 Flash plus ADK 2.x — the agent framework of the Google Cloud Agent Builder / Gemini Enterprise Agent Platform family — plus the Elastic Agent Builder MCP endpoint / Elastic MCP container

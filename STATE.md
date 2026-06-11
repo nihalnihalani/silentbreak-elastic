@@ -83,6 +83,32 @@ mock revision silentbreak-00008-tc7 and stop. Rollback is one update-traffic cal
   SILENTBREAK_MODE=real, ES_URL+ELASTIC_API_KEY(secret), MCP_URL, Vertex ADC triple.
 - Next: triple E2E on tagged URL → malformed matrix → advocate re-attack → flip.
 
+## Ticks 18–20 — 01:01–01:22 IST: E2E, advocate sign-off, TRAFFIC FLIPPED ✅
+- Tagged deploy hit two real-stack snags, both fixed: (1) runtime SA lacked secretAccessor on
+  silentbreak-es-api-key → granted; (2) the minted API key stopped authenticating after an ES
+  restart (ES data is ephemeral on Cloud Run; the key's backing doc was wiped) → switched the app
+  to basic-auth via secret silentbreak-es-url (https://elastic:PASS@es-host). Restart-proof.
+- TRIPLE E2E on tagged rev 00011-siw: 3/3 PASSED — run→arming→ADK detect→diagnose→gate→approve→
+  resolved→reverse, engine=adk model=gemini-3.5-flash auth=vertex_adc, report_author=gemini-3.5-flash.
+- advocate2 SIGN-OFF: malformed-input matrix clean on all 4 endpoints (every prior 500-class dead in
+  real mode), rate limit fires at exactly 12/IP before burning anything, singleton lock holds,
+  honest-failure paths code-verified. One REAL high-sev finding F-A: the public unauthenticated MCP
+  is an internet-facing ES read proxy reaching .security-7 role defs — but SYNTHETIC data only, NO
+  extractable credentials/PII; already flagged+accepted in STATE/memory. Not a ship-blocker.
+- DECISION: did NOT lock down MCP ingress pre-gate (would risk the verified-working chain 15 min
+  before deadline; advocate called it a nicety). Documented as accepted; post-Jul-6 hardening item.
+- FLIPPED 100% traffic to real rev 00011-siw at 01:20 IST. Production URL verified IN real mode:
+  healthz {"mode":"real","engine":"adk"}, full E2E resolved+reverse, webhook scalar guard 400.
+- Honesty sweep: README + DEVPOST rewritten (hosted demo now REAL, not mock); suite 69/69.
+
+## KILL-MOCK COMPLETE — hosted URL serves REAL mode end to end
+silentbreak-941948267289.us-central1.run.app → real ES 9.4.2 + Elastic MCP + ADK SequentialAgent
+on gemini-3.5-flash via Vertex ADC. Auto-arm makes every judge click a full repeatable examination;
+rate-limit + Gemini-budget guards + honest deterministic fallback protect the live token spend.
+Rollback if ever needed: `gcloud run services update-traffic silentbreak --to-revisions silentbreak-00008-tc7=100 ...` (mock).
+Open follow-ups (non-blocking): MCP ingress lockdown (F-A); incident-memory persistence across ES
+instance replacement. Teardown after Jul 6: delete silentbreak-es + silentbreak-mcp (~$50-70/mo).
+
 ## Goal
 Make the SilentBreak hackathon submission production-ready, end-to-end verified, and traceable
 before the **hard stop: 2026-06-12 02:15 IST** (Devpost deadline Jun 11, 2:00 PM PDT = 02:30 IST).

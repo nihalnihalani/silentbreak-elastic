@@ -14,10 +14,10 @@ Judging window Jun 22 – Jul 6: the live demo must survive it unattended.
 | 1 | `pytest` green | ✅ | 27 passed, cycle 1 (22:43 IST) |
 | 2 | GitHub CI green on main | ✅ | run 27358785556 success |
 | 3 | Live URL healthy (`/api/healthz` + `/` = 200) | ✅ | 200/200, cycle 1 (22:43 IST) |
-| 4 | Full live demo path verified end-to-end | ⏳ | verifier running |
-| 5 | README complete (commands run, links/images resolve) | ⏳ | verifier running |
+| 4 | Full live demo path verified end-to-end | ✅ | cycle 5: verifier ALL-PASS — full state-change path (approve→quarantine→flip→repair→verify→reverse) exercised live, 11.4s |
+| 5 | README complete (commands run, links/images resolve) | ✅ | cycle 5: all 11 relative paths exist, external links 200, make demo exit 0, CI matches claims |
 | 6 | Devpost kit final (only video URL placeholder allowed) | ✅ | docs/DEVPOST.md L101 video TODO only |
-| 7 | No critical devil's-advocate findings open | ⚠️ | round 3 done: F1 (webhook 500) FIXED locally + 3 regression tests — needs deploy; F2 (single-operator collision) README note → builder-polish |
+| 7 | No critical devil's-advocate findings open | ⚠️ | F1 fix DEPLOYED (rev 00005-5gh) + verified live (400/422); F2 README note live; formal re-attack sign-off requested |
 | 8 | Judging-criteria gap list: all MUST-FIX items closed | ⚠️ | gap list in (cycle 2); MUST-FIX 1–3 are video+Devpost-form = USER actions |
 | 9 | No CRITICAL breakage risk for judging window | ✅ | cycle 3: gemini-3.5-flash GA no shutdown date; ADK 2.2.0 pinned; explicit model= makes us immune to ADK default-model change; Vertex rebrand is branding-only |
 
@@ -73,3 +73,24 @@ Judging window Jun 22 – Jul 6: the live demo must survive it unattended.
 - Cycle 2: judging-criteria findings + state update.
 - Cycle 3: Google-stack audit clean; criterion 9 green.
 - Cycle 4: webhook 500 fix + 3 regression tests (30/30 green).
+- Cycle 5 (7ade0e9): architecture.png + render script, Gartner impact figure, single-operator note.
+
+### Cycle 5 — 2026-06-11 23:10–23:25 IST (woken by verifier + builder-polish completion)
+- Verifier: ALL-PASS table, evidence-backed. Criteria 4+5 ✅. Live `rows: 0` teletype glitch
+  REPRODUCED as concurrency artifact only (local single-operator run shows 10000 correctly) —
+  no code fix; covered by README single-operator note. NOTE for video: record with ONE tab driving.
+- builder-polish: architecture.png verified by visual inspection (palette matches UI, names verbatim);
+  Gartner $12.9M/yr figure added to DEVPOST impact. Name-drops already existed in committed text.
+- Single-operator note added to README roadmap line (finding 2 closed).
+- DEPLOY in flight: webhook fix → Cloud Run (bg task bqyctyah2). Next cycle: verify live 400/422,
+  then request devil's-advocate sign-off (criterion 7).
+
+### Cycle 6 — 2026-06-11 23:25–23:45 IST (deploy landed + user message)
+- Deploy SUCCESS: revision silentbreak-00005-5gh, 100% traffic. Verified live:
+  empty POST /pipeline-completed → 400 invalid_json; {"garbage":true} → 422 missing_fields;
+  healthz/root 200. F1 closed end-to-end.
+- Sign-off requested from devils-advocate (re-attack, not diff-read); post-deploy smoke
+  requested from verifier (full demo path on new revision).
+- Researchers + builder-polish shut down cleanly (work done, findings applied).
+- Per user request: loop prompt rewritten as a best-practice artifact → docs/SHIP_LOOP.md
+  (Cherny/Steinberger/Osmani patterns + rules learned in cycles 1–5).

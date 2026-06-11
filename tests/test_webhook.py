@@ -57,6 +57,16 @@ def test_missing_required_fields_is_422(client):
 
 
 @pytest.mark.parametrize("endpoint", ["/api/approve", "/api/reject", "/api/reverse"])
+@pytest.mark.parametrize("run_id", [[1], {"a": 1}, 42])
+def test_hitl_endpoints_tolerate_unhashable_run_id(client, endpoint, run_id):
+    # Round-6 regression: RUNS.get(unhashable) raised TypeError -> 500.
+    # Non-string run_id values must behave like an absent run_id.
+    resp = client.post(endpoint, json={"run_id": run_id})
+    assert resp.status_code == 404
+    assert resp.json()["error"] == "no_such_run"
+
+
+@pytest.mark.parametrize("endpoint", ["/api/approve", "/api/reject", "/api/reverse"])
 @pytest.mark.parametrize("payload", ["42", "[]", '"x"'])
 def test_hitl_endpoints_tolerate_non_dict_bodies(client, endpoint, payload):
     # Round-5 regression: body.get() on a non-dict raised AttributeError -> 500.

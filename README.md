@@ -4,6 +4,8 @@
 
 ![The operator gate: live ADK · Gemini 3.5 Flash run paused at the press-and-hold APPROVE stamp](docs/img/ui-gate.png)
 
+![One full examination, animated: green lie → memory recall → needle sweep → CONTRADICTION → operator gate → quarantine, flip, repair → healed](docs/img/ui-examination.gif)
+
 *A live run captured on 2026-06-11 — engine badge `REAL / ADK · GEMINI-3.5-FLASH`, the agent rail lit, the EXAMINER RECALLS memory line, MCP tool calls on the teletype, and the run paused at the operator gate. The body text's z=40 is `null_rate` (the floor-regularized headline metric); the z=132 inked here is `avg_amount` (baseline 67.61, σ 0.51 — the arithmetic checks out), which Gemini chose to lead with on this run. Every z on the stream is recomputed server-side from the baseline store — Gemini reports what it saw, but the model's self-reported arithmetic never reaches the operator gate. The [resolved state](docs/img/ui-resolved.png) shows Gemini's filed report: `FILED SB-2026-06-11 · ENGINE adk · REPORT BY gemini-3.5-flash`.*
 
 **Live demo:** https://silentbreak-941948267289.us-central1.run.app (mock mode, zero secrets, fully interactive — press RUN EXAMINATION)

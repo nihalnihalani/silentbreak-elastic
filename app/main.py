@@ -404,6 +404,8 @@ async def _decision(request: Request, decide: str):
         body = await request.json()
     except Exception:
         pass
+    if not isinstance(body, dict):
+        body = {}  # non-dict JSON (scalar/list) behaves like an empty body
     run_id = body.get("run_id") or (active_record().run_id if active_record() else None)
     rec = RUNS.get(run_id) if run_id else None
     if rec is None:
@@ -438,6 +440,8 @@ async def api_reverse(request: Request):
         body = await request.json()
     except Exception:
         pass
+    if not isinstance(body, dict):
+        body = {}  # non-dict JSON (scalar/list) behaves like an empty body
     run_id = body.get("run_id") or (RUN_ORDER[-1] if RUN_ORDER else None)
     rec = RUNS.get(run_id) if run_id else None
     if rec is None:

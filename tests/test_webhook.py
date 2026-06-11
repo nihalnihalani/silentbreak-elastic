@@ -54,3 +54,15 @@ def test_missing_required_fields_is_422(client):
     body = resp.json()
     assert body["error"] == "missing_fields"
     assert set(body["fields"]) == {"day", "today_index", "yesterday_index"}
+
+
+@pytest.mark.parametrize("endpoint", ["/api/approve", "/api/reject", "/api/reverse"])
+@pytest.mark.parametrize("payload", ["42", "[]", '"x"'])
+def test_hitl_endpoints_tolerate_non_dict_bodies(client, endpoint, payload):
+    # Round-5 regression: body.get() on a non-dict raised AttributeError -> 500.
+    # Non-dict bodies must behave like empty bodies (404 no_such_run here,
+    # since no run is active) — never a raw 500.
+    resp = client.post(endpoint, content=payload.encode(),
+                       headers={"Content-Type": "application/json"})
+    assert resp.status_code == 404
+    assert resp.json()["error"] == "no_such_run"

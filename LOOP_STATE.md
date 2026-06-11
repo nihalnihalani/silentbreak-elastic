@@ -94,3 +94,16 @@ Judging window Jun 22 – Jul 6: the live demo must survive it unattended.
 - Researchers + builder-polish shut down cleanly (work done, findings applied).
 - Per user request: loop prompt rewritten as a best-practice artifact → docs/SHIP_LOOP.md
   (Cherny/Steinberger/Osmani patterns + rules learned in cycles 1–5).
+
+### Cycle 7 — 2026-06-11 23:50 IST (woken by devils-advocate NO-sign-off + verifier all-PASS)
+- Devils-advocate re-attack correctly REOPENED F1: scalar JSON bodies ('42'/'null'/'true')
+  → TypeError → raw 500 on rev 00005-5gh. The re-attack rule earned its keep.
+- FIXED (dedca0b): isinstance(dict) guard → 400; present-but-null required keys → 422.
+  4 new regression tests; suite 34/34.
+- Verifier post-deploy smoke: full demo path ALL-PASS on 00005-5gh (run→gate→approve→
+  quarantine 10000→flip→repair→verify→reverse, 13s). Cosmetic rows:0 glitch did not reproduce.
+- Redeploy in flight (bg b65ab3a25). Next: verify '42'/'null'/'true' → 4xx live, re-ping
+  devils-advocate for sign-off.
+- Redeploy LANDED: revision silentbreak-00006-hf2, 100% traffic. Live-verified all demanded
+  checks: '42'/'null'/'true' → 400 invalid_json; null-valued keys → 422 missing_fields;
+  healthz 200. CI green on dedca0b. Devils-advocate round-5 re-attack requested.

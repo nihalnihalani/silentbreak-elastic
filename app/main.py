@@ -29,6 +29,7 @@ from fastapi.staticfiles import StaticFiles
 
 import config
 from agents import adk_pipeline, guardian, orchestrator
+from app import arming, guards
 from app.events import EventBus
 from integrations.approval import registry
 from integrations.elastic_client import ElasticClient
@@ -62,6 +63,8 @@ class RunRecord:
     incident: dict | None = None
     started_at: float = field(default_factory=time.monotonic)
     last_event_at: float = field(default_factory=time.monotonic)
+    arm_real: bool = False  # real mode: (re)seed the poisoned world before running
+    forced_deterministic_reason: str | None = None  # set when the daily budget is spent
 
 
 # On Cloud Run, CPU is throttled when no request is in flight, so a run whose
@@ -242,13 +245,48 @@ def _real_event(client: ElasticClient) -> dict | None:
     }
 
 
+async def _arm_real(client: ElasticClient, emit) -> dict:
+    """Ensure the poisoned-demo world exists for today, then return its event.
+
+    Idempotent: reuses the world if it is already armed for today, otherwise
+    (re)seeds + injects via the CLI scripts' functions. Incident memory is
+    preserved across re-arms. Runs the blocking ES I/O off the event loop.
+    Raises if the alias can't be resolved afterwards (a real-mode misconfig).
+    """
+    es = client.es
+    already = await asyncio.to_thread(arming.is_armed, es)
+    if already:
+        await emit("teletype", {
+            "line": f"> world already armed — alias {config.ALIAS} on today's "
+                    "poisoned partition (reusing; incident memory intact)"})
+    else:
+        await emit("teletype", {
+            "line": "> arming examination world — landing healthy baseline + "
+                    "today's silent drift (incident memory preserved)"})
+        info = await asyncio.to_thread(arming.arm, es)
+        await emit("teletype", {
+            "line": f"> armed: {info['rows']} rows under `gross_amount` in "
+                    f"{info['index']}; alias flipped; pipeline says SUCCESS (the lie)"})
+    event = _real_event(client)
+    if event is None:
+        raise RuntimeError("real-mode arming did not yield a seeded alias")
+    return event
+
+
 async def _execute_run(rec: RunRecord, event: dict | None, engine: str,
                        engine_reason: str | None) -> None:
     client = get_client()
     emit = _tracking_emit(rec)
     pace = 0.45 if client.mode == "mock" else 0.15
     try:
-        if event is None:  # default scenario: land the drama first (mock)
+        if rec.forced_deterministic_reason:
+            await emit("teletype", {
+                "line": "> daily Gemini budget reached — running the deterministic "
+                        "engine (same loop, same gate, labeled honestly)"})
+        if rec.arm_real:  # real mode: ensure the poisoned-demo world exists
+            rec.phase = "arming"
+            event = await _arm_real(client, emit)
+        elif event is None:  # default scenario: land the drama first (mock)
             rec.phase = "landing"
             event = await _seed_mock(client, emit)
         rec.today_index = event["today_index"]
@@ -295,10 +333,17 @@ async def _execute_run(rec: RunRecord, event: dict | None, engine: str,
                            {"result": "vetoed", "reason": f"error: {exc}", "duration_ms": 0})
 
 
-def _start_run(event: dict | None) -> RunRecord:
-    engine, reason = select_engine()
+def _start_run(event: dict | None, *, arm_real: bool = False,
+               forced_deterministic_reason: str | None = None) -> RunRecord:
+    if forced_deterministic_reason:
+        # Daily Gemini budget spent: force the labeled deterministic engine.
+        engine, reason = "deterministic", forced_deterministic_reason
+    else:
+        engine, reason = select_engine()
     run_id = uuid.uuid4().hex[:12]
-    rec = RunRecord(run_id=run_id, bus=EventBus(run_id), engine=engine)
+    rec = RunRecord(run_id=run_id, bus=EventBus(run_id), engine=engine,
+                    arm_real=arm_real,
+                    forced_deterministic_reason=forced_deterministic_reason)
     RUNS[run_id] = rec
     RUN_ORDER.append(run_id)
     rec.task = asyncio.create_task(_execute_run(rec, event, engine, reason))
@@ -342,20 +387,26 @@ def api_state():
 
 @app.post("/api/run")
 async def api_run(request: Request):
+    # Per-IP abuse guard runs before the run lock so a flooder can't even
+    # contend for it. The live endpoint burns real Gemini tokens.
+    if not guards.rate_limiter.allow(guards.client_ip(request)):
+        return JSONResponse({"error": "rate_limited"}, status_code=429)
     if (rec := active_record()) is not None and (resp := reap_or_409(rec)) is not None:
         return resp
     try:
         client = get_client()
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=503)
-    event: dict | None = None
-    if client.mode == "real":
-        event = _real_event(client)
-        if event is None:
-            return JSONResponse(
-                {"error": "alias not seeded — run `make seed && make inject` first"},
-                status_code=409)
-    rec = _start_run(event)
+    # Daily global budget: when spent the run still happens, but on the labeled
+    # deterministic engine (the demo degrades visibly, never goes dark).
+    forced_reason = None
+    if not guards.daily_budget.consume():
+        forced_reason = "daily_gemini_budget_reached"
+    # Real mode arms the poisoned world INSIDE the run lifecycle (behind the
+    # singleton run lock, so two concurrent runs can't double-seed) and narrates
+    # it over SSE — a judge clicking RUN always gets the full examination.
+    rec = _start_run(None, arm_real=(client.mode == "real"),
+                     forced_deterministic_reason=forced_reason)
     return JSONResponse({"run_id": rec.run_id, "mode": config.MODE, "engine": rec.engine},
                         status_code=202)
 

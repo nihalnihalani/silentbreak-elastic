@@ -1,15 +1,18 @@
 # SilentBreak Cloud Run image (root-level so `gcloud run deploy --source .` uses it).
-# Defaults to SILENTBREAK_MODE=mock so the hosted URL is fully interactive with
-# zero secrets. Real mode is configuration only (set SILENTBREAK_MODE=real plus
-# ES_URL/ELASTIC_API_KEY and MCP_URL as env vars on the service).
-# Installs requirements-serve.txt only: the ADK/Gemini engine needs the full
-# requirements.txt and is not part of this image; the app labels its engine honestly.
+# Installs the FULL requirements.txt (the google-adk / Gemini stack), so the
+# real ADK engine exists in the image and the hosted service can run real mode
+# end to end. The deterministic engine is the labeled fallback either way.
+#
+# The image default stays SILENTBREAK_MODE=mock so a bare `docker run` is
+# zero-setup and zero-secret; real mode is turned on by the SERVICE env at
+# deploy time (SILENTBREAK_MODE=real + ES_URL/ELASTIC_API_KEY + MCP_URL +
+# Gemini/Vertex env). The app labels whichever engine actually runs.
 FROM python:3.12-slim
 
 WORKDIR /srv/silentbreak
 
-COPY requirements-serve.txt .
-RUN pip install --no-cache-dir -r requirements-serve.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 

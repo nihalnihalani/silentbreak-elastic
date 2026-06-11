@@ -72,10 +72,35 @@ function typeLine(text, cls, speed) {
   if (!typing) drainTypeQueue();
 }
 
+/* A small inked stamp pressed into the report flow, queued so it lands in
+   order with the typed lines (e.g. REPAIRED PARTITION READY). */
+function typeStamp(main, meta) {
+  typeQueue.push({ stamp: { main, meta } });
+  if (!typing) drainTypeQueue();
+}
+
 async function drainTypeQueue() {
   typing = true;
   while (typeQueue.length) {
     const job = typeQueue.shift();
+    if (job.stamp) {
+      const box = document.createElement("div");
+      box.className = "r-stamped";
+      const m = document.createElement("span");
+      m.className = "r-stamped-main";
+      m.textContent = job.stamp.main;
+      box.appendChild(m);
+      if (job.stamp.meta) {
+        const s = document.createElement("span");
+        s.className = "r-stamped-meta";
+        s.textContent = job.stamp.meta;
+        box.appendChild(s);
+      }
+      els.reportBody.appendChild(box);
+      els.reportBody.scrollTop = els.reportBody.scrollHeight;
+      await new Promise((r) => setTimeout(r, 200));
+      continue;
+    }
     const span = document.createElement("span");
     span.className = "r-line " + job.cls;
     const caret = document.createElement("span");
@@ -225,6 +250,55 @@ function holdToFire(btn, ms, onProgress, onFire, onCancel) {
   });
 }
 
+/* ------------------------------------------------- agent rail (officers) */
+/* The backend is adding an `agent` field ("sentinel"|"rootcause"|"guardian"|
+   "scribe"|"system") to every SSE event. Prefer it; when absent, fall back
+   to mapping the event type so the rail still lights on older backends. */
+const RAIL_AGENTS = ["sentinel", "rootcause", "guardian", "scribe"];
+const AGENT_BY_EVENT = {
+  run_started: "sentinel",
+  pipeline_status: "sentinel",
+  sentinel_check: "sentinel",
+  contradiction: "sentinel",
+  memory: "sentinel",
+  diagnosis: "rootcause",
+  awaiting_approval: "guardian",
+  approved: "guardian",
+  rejected: "guardian",
+  guardian_action: "guardian",
+  repair: "guardian",
+  verify: "guardian",
+  reversed: "guardian",
+  incident: "scribe",
+};
+
+function railPlaque(agent) { return $("lamp-" + agent); }
+
+function railReset() {
+  for (const a of RAIL_AGENTS) {
+    const el = railPlaque(a);
+    if (el) el.dataset.state = "idle";
+  }
+}
+
+function railActivate(agent) {
+  if (!agent || RAIL_AGENTS.indexOf(agent) === -1) return; // "system" et al.
+  const el = railPlaque(agent);
+  if (!el || el.dataset.state === "active") return;
+  for (const a of RAIL_AGENTS) {
+    const other = railPlaque(a);
+    if (other && other.dataset.state === "active") other.dataset.state = "done";
+  }
+  el.dataset.state = "active";
+}
+
+function railSettle() { // examination over: any burning lamp goes to done
+  for (const a of RAIL_AGENTS) {
+    const el = railPlaque(a);
+    if (el && el.dataset.state === "active") el.dataset.state = "done";
+  }
+}
+
 /* -------------------------------------------------------------- run state */
 let currentRunId = null;
 let source = null;
@@ -233,6 +307,7 @@ let reversedAlready = false;
 
 function resetPanels() {
   chartReset();
+  railReset();
   els.reportBody.textContent = "";
   els.ttLines.textContent = "";
   els.gateIdle.hidden = false;
@@ -263,7 +338,11 @@ function attach(runId) {
     source.addEventListener(type, (e) => {
       let env;
       try { env = JSON.parse(e.data); } catch (_) { return; }
-      fn(env.data || {});
+      const data = env.data || env.payload || {};
+      // Light the officer's lamp: trust the explicit agent field when the
+      // backend sends one, fall back to the event-type mapping otherwise.
+      railActivate(env.agent || data.agent || AGENT_BY_EVENT[type]);
+      fn(data);
     });
   }
   source.onerror = () => { /* EventSource auto-reconnects; buffer replay makes it safe */ };
@@ -296,6 +375,24 @@ const handlers = {
       tt("! " + d.metric + "=" + Number(d.value).toFixed(3) +
          "  baseline=" + Number(d.baseline_mean).toFixed(3) +
          "  z=" + Number(d.z).toFixed(1) + "  BREACH", "tt-err");
+    }
+  },
+  memory(d) {
+    // Sentinel consults the incident ledger right after the run opens.
+    const p = d.payload || d; // tolerate either {payload:{...}} or flat data
+    const n = Number(p.prior_count || 0);
+    if (n > 0) {
+      let line = "EXAMINER RECALLS: " + n + " prior incident" + (n === 1 ? "" : "s") +
+                 " on this pipeline.";
+      if (p.last_id) {
+        line += " Last: " + p.last_id + (p.last_summary ? " — " + p.last_summary : "") + ".";
+      }
+      typeLine(line, "r-recall", 12);
+      tt("> ledger: " + n + " prior incident(s) on file" +
+         (p.last_id ? "  last=" + p.last_id : ""), "tt-dim");
+    } else {
+      typeLine("EXAMINER RECALLS: no prior incidents on file.", "r-recall", 12);
+      tt("> ledger: no prior incidents on file", "tt-dim");
     }
   },
   contradiction(d) {
@@ -351,9 +448,21 @@ const handlers = {
     tt("> " + d.detail);
     if (d.step === "alias_flip") typeLine("ACTION. " + d.detail, "", 8);
   },
+  repair(d) {
+    // Guardian rebuilt the partition after the alias flip.
+    const p = d.payload || d;
+    const idx = p.repaired_index || p.index || "?";
+    const docs = p.docs != null ? Number(p.docs).toLocaleString() : "?";
+    const rename = p.rename ? String(p.rename).replace(/\s*->\s*/, " -> ") : "";
+    tt("> reindex " + idx + "  docs=" + docs + (rename ? "  rename: " + rename : ""));
+    typeStamp("REPAIRED PARTITION READY",
+              idx + " · " + docs + " DOCS" + (rename ? " · " + rename.toUpperCase() : ""));
+    typeLine("THE CORRUPT PARTITION HAS BEEN REBUILT IN PLACE OF THE LIE.", "r-dim", 8);
+  },
   verify(d) {
     setPhase("verify");
-    tt("> FROM " + d.alias + " | STATS COUNT(*), AVG(amount)   -> target=" + d.target);
+    const field = d.field || d.revenue_field || "amount";
+    tt("> FROM " + d.alias + " | STATS COUNT(*), AVG(" + field + ")   -> target=" + d.target);
     tt("  rows=" + d.row_count + "  null_rate=" + Number(d.null_rate).toFixed(3) +
        "  avg=" + Number(d.avg_amount).toFixed(2) + "  OK");
   },
@@ -370,8 +479,11 @@ const handlers = {
     els.reverseBtn.disabled = true;
     reversedAlready = true;
     setPhase("resolved");
+    // Guardian's lamp burned for the reversal; let it settle back to done.
+    setTimeout(railSettle, 1600);
   },
   run_complete(d) {
+    railSettle();
     const phase = { remediated: "resolved", green: "green" }[d.result] || "vetoed";
     setPhase(phase);
     els.runBtn.disabled = false;
@@ -454,8 +566,11 @@ els.replayBtn.addEventListener("click", () => {
     const res = await fetch("/api/state");
     const s = await res.json();
     els.mode.textContent = s.mode === "mock" ? "MOCK (IN-MEMORY ES)" : s.mode.toUpperCase();
+    // Same label the live `engine` event renders, so the badge never flickers
+    // between "ADK · GEMINI" and "ADK · gemini-3.5-flash".
     els.engine.textContent = s.engine === "adk"
-      ? "ADK · GEMINI" : "DETERMINISTIC";
+      ? "ADK · " + (s.model || s.gemini_model || "gemini-3.5-flash")
+      : "DETERMINISTIC";
     els.alias.textContent = s.alias || "revenue_current";
     if (s.active_run_id) {
       resetPanels();

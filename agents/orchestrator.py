@@ -37,33 +37,43 @@ def run(client, event: dict, approver: Callable[[str, list[str]], str | None] | 
     today = event["today_index"]
     yesterday = event["yesterday_index"]
     day = event["day"]
+
+    # Memory layer: recall prior incidents for this pipeline before examining.
+    memory = sentinel.recall_memory(client)
+    prior_count = int(memory.get("prior_count", 0))
+
     status = sentinel.read_status(client, day, fallback=event.get("pipeline_status", "UNKNOWN"))
 
     contradiction = sentinel.detect(client, today, status["status"])
     if contradiction is None:
-        return {"result": "green", "message": "No contradiction. Pipeline data is healthy."}
+        return {"result": "green", "message": "No contradiction. Pipeline data is healthy.",
+                "memory": memory}
 
     diagnosis = rootcause.diagnose(client, today, yesterday, contradiction)
+    repair_from = sorted(diagnosis.added)[0] if diagnosis.added else "gross_amount"
 
     run_id = uuid.uuid4().hex[:12]
-    plan = guardian.build_plan(today, yesterday, day)
+    plan = guardian.build_plan(today, yesterday, day, repair_from=repair_from)
     registry.request(run_id, plan)
     token = (approver or _cli_auto_approver)(run_id, plan)
     if not token:
-        return {"result": "vetoed", "reason": "operator_rejected",
+        return {"result": "vetoed", "reason": "operator_rejected", "memory": memory,
                 "contradiction": contradiction, "diagnosis": diagnosis}
 
     try:
         result = guardian.act(client, today, yesterday, day,
-                              registry=registry, run_id=run_id, token=token)
+                              registry=registry, run_id=run_id, token=token,
+                              repair_from=repair_from)
     except guardian.ApprovalDenied as exc:
-        return {"result": "vetoed", "reason": str(exc),
+        return {"result": "vetoed", "reason": str(exc), "memory": memory,
                 "contradiction": contradiction, "diagnosis": diagnosis}
 
     incident = scribe.record(client, contradiction, diagnosis, result, day,
-                             engine="deterministic", approved_token_id=token[:8])
+                             engine="deterministic", approved_token_id=token[:8],
+                             prior_count=prior_count)
     return {
         "result": "remediated",
+        "memory": memory,
         "contradiction": contradiction,
         "diagnosis": diagnosis,
         "guardian": result,
@@ -95,6 +105,12 @@ async def run_async(client, event: dict, emit: Emit, run_id: str, *,
     if engine_reason:
         engine_data["reason"] = engine_reason
     await emit("engine", engine_data)
+
+    # Memory layer: recall prior incidents for this pipeline (Elastic incident
+    # index = the agent's long-term memory) right after run start.
+    memory = await asyncio.to_thread(sentinel.recall_memory, client)
+    prior_count = int(memory.get("prior_count", 0))
+    await emit("memory", {"agent": "sentinel", **memory})
 
     # 1) the pipeline's own story: green
     await emit("teletype", {"line": f"> GET {config.STATUS_INDEX}/_search  day={day}"})
@@ -147,7 +163,8 @@ async def run_async(client, event: dict, emit: Emit, run_id: str, *,
     await emit("diagnosis", diagnosis.as_event())
 
     # 4) HITL: nothing below this line happens without the operator's stamp
-    plan = guardian.build_plan(today, yesterday, day)
+    repair_from = sorted(diagnosis.added)[0] if diagnosis.added else "gross_amount"
+    plan = guardian.build_plan(today, yesterday, day, repair_from=repair_from)
     registry.request(run_id, plan)
     await emit("awaiting_approval", {
         "action": "quarantine", "plan": plan, "index": today, "target_index": yesterday,
@@ -164,7 +181,7 @@ async def run_async(client, event: dict, emit: Emit, run_id: str, *,
     try:
         gres = await asyncio.to_thread(
             guardian.act, client, today, yesterday, day,
-            registry=registry, run_id=run_id, token=token)
+            registry=registry, run_id=run_id, token=token, repair_from=repair_from)
     except guardian.ApprovalDenied as exc:
         result = done("vetoed", reason=str(exc))
         await emit("run_complete", result)
@@ -181,6 +198,16 @@ async def run_async(client, event: dict, emit: Emit, run_id: str, *,
         "detail": f"update_aliases: {gres.alias} {gres.alias_was} -> {gres.alias_now}",
     })
 
+    # 5b) REPAIR: recovery reindex already ran inside guardian.act (same
+    # approved token); surface it. Alias stays on last-known-good by design.
+    await emit("teletype", {
+        "line": (f"> _reindex {gres.q_index} -> {gres.repaired_index}  "
+                 f"painless: {gres.repair_rename}  ({gres.repaired_docs} docs)")})
+    await emit("repair", {
+        "agent": "guardian", "repaired_index": gres.repaired_index,
+        "docs": gres.repaired_docs, "rename": gres.repair_rename,
+    })
+
     # 6) verify downstream THROUGH the alias
     v = gres.verify
     await emit("teletype", {
@@ -192,8 +219,9 @@ async def run_async(client, event: dict, emit: Emit, run_id: str, *,
 
     # 7) Scribe
     incident = await asyncio.to_thread(
-        scribe.record, client, contradiction, diagnosis, gres, day,
-        engine=engine_name, approved_token_id=token[:8])
+        lambda: scribe.record(client, contradiction, diagnosis, gres, day,
+                              engine=engine_name, approved_token_id=token[:8],
+                              prior_count=prior_count))
     await emit("incident", {"doc": incident})
 
     result = done("remediated", today_index=today, yesterday_index=yesterday,

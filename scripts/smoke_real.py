@@ -149,6 +149,26 @@ def main() -> None:
     check(all(h["_id"].startswith("SB-SMOKE-") for h in smoke_incidents),
           "incident ids are smoke-namespaced (never overwrite the demo's incident)")
 
+    # ---- e2. repair: recovery reindex staged the repaired index ----
+    step("repair assertions")
+    repaired_index = f"{today_index}-repaired"
+    check(es.indices.exists(index=repaired_index),
+          f"repaired index {repaired_index} exists")
+    es.indices.refresh(index=repaired_index)
+    repaired_count = es.count(index=repaired_index)["count"]
+    check(repaired_count == 2000,
+          f"repaired index holds all {repaired_count} quarantined rows")
+    missing_amount = es.count(index=repaired_index, query={
+        "bool": {"must_not": {"exists": {"field": config.REVENUE_FIELD}}}})["count"]
+    check(missing_amount == 0,
+          f"every repaired doc carries `{config.REVENUE_FIELD}` (painless rename applied)")
+    sample = es.search(index=repaired_index, size=1,
+                       query={"match_all": {}})["hits"]["hits"][0]["_source"]
+    check(config.REVENUE_FIELD in sample and "gross_amount" not in sample,
+          "sample repaired doc renamed gross_amount->amount")
+    check(alias_target_direct(es, config.ALIAS) == yesterday_index,
+          "alias still on last-known-good (repair staged, not re-pointed)")
+
     # ---- f. reverse (prove the flip is a real, reversible state change) ----
     step("reverse")
     client.update_alias(config.ALIAS, today_index)
@@ -160,8 +180,30 @@ def main() -> None:
     q_count = es.count(index=q_index)["count"]
     check(q_count == 2000, f"quarantine index {q_index} holds exactly its own {q_count} rows")
 
-    # ---- g. cleanup ----
+    # ---- g. memory layer: a second run recalls the first incident ----
+    step("memory recall (second run)")
+    inject(es, prefix=PREFIX, rows_per_day=2000)  # re-land the poison
+    out2 = orchestrator.run(client, dict(event), approver=auto_approver)
+    check(out2["result"] == "remediated", f"second run remediated ({out2['result']})")
+    mem = out2.get("memory") or {}
+    check(int(mem.get("prior_count", 0)) >= 1,
+          f"second run recalled prior incident(s) (prior_count={mem.get('prior_count')})")
+    check(str(mem.get("last_id", "")).startswith("SB-SMOKE-"),
+          f"recalled incident is smoke-namespaced ({mem.get('last_id')})")
+    check(bool(mem.get("last_summary")),
+          f"memory carries a one-line summary: {mem.get('last_summary')!r}")
+    inc2 = out2["incident"]
+    check(int(inc2.get("incident_number", 0)) >= 2,
+          f"incident doc says incident #{inc2.get('incident_number')} for this pipeline")
+    check(f"incident #{inc2['incident_number']}" in inc2.get("report", ""),
+          "Scribe report references the recalled prior incident count")
+
+    # ---- h. cleanup ----
     step("cleanup")
+    es.indices.refresh(index=config.INCIDENT_INDEX)
+    incidents = es.search(index=config.INCIDENT_INDEX, size=100,
+                          query={"match_all": {}})["hits"]["hits"]
+    smoke_incidents = [h for h in incidents if PREFIX in json.dumps(h["_source"])]
     from reset_world import _resolve
     for pattern in (f"{PREFIX}*", q_index):
         for name in _resolve(es, pattern):

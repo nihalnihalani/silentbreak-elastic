@@ -35,12 +35,14 @@ from integrations.elastic_client import ElasticClient
 # ---------------------------------------------------------------- run state
 PHASE_BY_EVENT = {
     "run_started": "detect",
+    "memory": "detect",
     "sentinel_check": "detect",
     "contradiction": "diagnose",
     "diagnosis": "diagnose",
     "awaiting_approval": "awaiting_approval",
     "approved": "quarantine",
     "guardian_action": "quarantine",
+    "repair": "quarantine",
     "verify": "verify",
 }
 
@@ -159,7 +161,8 @@ async def _seed_mock(client: ElasticClient, emit) -> dict:
         "today_index": today_index,
         "yesterday_index": config.partition_index(MOCK_YESTERDAY),
         "pipeline_status": "SUCCESS",
-        "history_days": MOCK_HEALTHY_DAYS[-9:] + [MOCK_YESTERDAY],
+        # exactly nine trailing healthy days (incl. yesterday), same as real mode
+        "history_days": MOCK_HEALTHY_DAYS[-8:] + [MOCK_YESTERDAY],
     }
 
 
@@ -175,7 +178,8 @@ def _real_event(client: ElasticClient) -> dict | None:
     except ValueError:
         return None
     yesterday = (day - timedelta(days=1)).isoformat()
-    history = [(day - timedelta(days=i)).isoformat() for i in range(9, 1, -1)]
+    # exactly nine trailing healthy days (incl. yesterday), same as mock mode
+    history = [(day - timedelta(days=i)).isoformat() for i in range(9, 0, -1)]
     return {
         "day": day_str,
         "today_index": target,
@@ -202,14 +206,29 @@ async def _execute_run(rec: RunRecord, event: dict | None, engine: str,
                 rec.result = await adk_pipeline.run_adk(
                     client, event, emit, rec.run_id, pace=pace)
             except Exception as exc:
-                await emit("error", {"message": f"ADK engine failed: {exc}"})
-                await emit("engine", {"name": "deterministic",
-                                      "reason": f"adk_runtime_error: {exc}"})
-                rec.engine = "deterministic"
-                rec.result = await orchestrator.run_async(
-                    client, event, emit, rec.run_id,
-                    engine_name="deterministic",
-                    engine_reason=f"adk_runtime_error: {exc}", pace=pace)
+                if registry.state(rec.run_id) == "approved":
+                    # The approval token was already minted (and possibly
+                    # consumed): Elastic writes may have happened. NEVER
+                    # re-run the loop on top of a half-applied remediation —
+                    # report the error and end the run cleanly instead.
+                    rec.phase = "vetoed"
+                    reason = f"adk_failed_after_approval: {exc}"
+                    await emit("error", {
+                        "message": (f"ADK engine failed AFTER approval — writes may "
+                                    f"have occurred; not re-running. {exc}")})
+                    rec.result = {"result": "error", "reason": reason}
+                    await emit("run_complete",
+                               {"result": "error", "reason": reason, "duration_ms": 0})
+                else:
+                    # Failure before any approval: zero writes, safe to fall back.
+                    await emit("error", {"message": f"ADK engine failed: {exc}"})
+                    await emit("engine", {"name": "deterministic",
+                                          "reason": f"adk_runtime_error: {exc}"})
+                    rec.engine = "deterministic"
+                    rec.result = await orchestrator.run_async(
+                        client, event, emit, rec.run_id,
+                        engine_name="deterministic",
+                        engine_reason=f"adk_runtime_error: {exc}", pace=pace)
         else:
             rec.result = await orchestrator.run_async(
                 client, event, emit, rec.run_id,
@@ -234,6 +253,9 @@ def _start_run(event: dict | None) -> RunRecord:
 
 
 # ------------------------------------------------------------------- routes
+# Google's frontend reserves /healthz on run.app domains and never forwards
+# it to the container, so the canonical health route lives under /api/.
+@app.get("/api/healthz")
 @app.get("/healthz")
 def healthz():
     engine, _ = select_engine()
@@ -386,4 +408,4 @@ else:
     @app.get("/")
     def root():
         return {"app": "SilentBreak", "note": "ui/ not built yet; API is live",
-                "try": ["/healthz", "/api/state", "POST /api/run", "/api/events"]}
+                "try": ["/api/healthz", "/api/state", "POST /api/run", "/api/events"]}

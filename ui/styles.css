@@ -30,7 +30,7 @@ body {
     repeating-linear-gradient(to bottom, rgba(216,207,188,.45) 0 1px, transparent 1px 28px),
     repeating-linear-gradient(to right,  rgba(216,207,188,.35) 0 1px, transparent 1px 28px);
   display: grid;
-  grid-template-rows: auto 300px minmax(0, 1fr) 148px auto;
+  grid-template-rows: auto 44px 258px minmax(0, 1fr) 148px auto;
   overflow: hidden;
   font-size: 13px;
   line-height: 1.45;
@@ -128,6 +128,93 @@ button:focus-visible { outline: 3px solid var(--stamp); outline-offset: 2px; }
 }
 .judder { animation: judder .14s linear 2; }
 
+/* ---------- agent rail: examining officers ---------- */
+/* Four brass nameplates screwed to the polygraph desk, one per agent.
+   The lamp above each plate burns red while that examiner is working,
+   then settles to solid ink once their part of the examination is done. */
+
+#agent-rail {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 2px solid var(--ink);
+  background: var(--paper);
+  overflow: hidden;
+}
+.rail-caption {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  border-right: 1px solid var(--ink);
+  font-size: 8.5px;
+  letter-spacing: .3em;
+  line-height: 1.5;
+  opacity: .6;
+  white-space: nowrap;
+}
+.plaque {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border-right: 1px solid var(--rule);
+  opacity: .4;
+  transition: opacity .35s ease;
+}
+.plaque:last-child { border-right: none; }
+.plaque[data-state="active"] { opacity: 1; }
+.plaque[data-state="done"] { opacity: .78; }
+
+/* the indicator lamp */
+.plaque .lamp {
+  flex: none;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  background: transparent;
+}
+.plaque[data-state="active"] .lamp {
+  border-color: var(--stamp);
+  background: var(--stamp);
+  box-shadow: 0 0 9px rgba(164,40,42,.75);
+  animation: lamp-burn 1.1s ease-in-out infinite;
+}
+.plaque[data-state="done"] .lamp { background: var(--ink); }
+@keyframes lamp-burn {
+  0%, 100% { box-shadow: 0 0 9px rgba(164,40,42,.75); }
+  50%      { box-shadow: 0 0 3px rgba(164,40,42,.35); }
+}
+
+/* the engraved brass plate, two screw heads */
+.plaque .plate {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  border: 1px solid var(--ink);
+  box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3px rgba(20,18,15,.35);
+  padding: 4px 18px 3px;
+  background: rgba(216,207,188,.35);
+}
+.plaque .plate::before,
+.plaque .plate::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 4px; height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: rgba(20,18,15,.5);
+}
+.plaque .plate::before { left: 5px; }
+.plaque .plate::after { right: 5px; }
+.plaque-name { font-size: 12px; font-weight: 700; letter-spacing: .22em; }
+.plaque-role { font-size: 8px; letter-spacing: .26em; opacity: .55; }
+
+/* a quiet check once the officer has finished */
+.plaque::after { content: "\2713"; font-size: 11px; margin-left: auto; opacity: 0; }
+.plaque[data-state="done"]::after { opacity: .55; }
+
 /* ---------- strip chart ---------- */
 
 #chart-section {
@@ -178,6 +265,28 @@ button:focus-visible { outline: 3px solid var(--stamp); outline-offset: 2px; }
 #report-body .r-add { color: var(--lie-green); }
 #report-body .r-del { color: var(--stamp); }
 #report-body .r-rule { border-bottom: 1px solid var(--rule); margin: 6px 0; }
+#report-body .r-recall { font-style: italic; opacity: .72; }
+
+/* small inked stamp inside the report (e.g. REPAIRED PARTITION READY) */
+#report-body .r-stamped {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0 6px;
+  padding: 6px 16px;
+  border: 3px solid var(--lie-green);
+  color: var(--lie-green);
+  transform: rotate(-2deg);
+  filter: url(#ink);
+  animation: thunk-small .26s cubic-bezier(.16, 1.4, .3, 1) both;
+}
+#report-body .r-stamped-main { font-size: 14px; font-weight: 700; letter-spacing: .2em; }
+#report-body .r-stamped-meta { font-size: 8.5px; letter-spacing: .18em; }
+@keyframes thunk-small {
+  0%   { transform: rotate(-2deg) scale(2) translateY(-18px); opacity: 0; }
+  55%  { transform: rotate(-2deg) scale(.95) translateY(0); opacity: 1; }
+  100% { transform: rotate(-2deg) scale(1) translateY(0); opacity: 1; }
+}
 .type-caret { display: inline-block; width: .62em; height: 1.05em; background: var(--ink); vertical-align: text-bottom; animation: caret 1s steps(1) infinite; }
 @keyframes caret { 50% { opacity: 0; } }
 

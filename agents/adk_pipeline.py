@@ -8,10 +8,12 @@ quarantine_and_flip function, which pauses at the shared ApprovalRegistry
 until the operator's press-and-hold APPROVE stamp mints a single-use token.
 ADK's request_confirmation is deliberately not used.
 
-Selected only when MODE=real and GOOGLE_API_KEY is set and google-adk imports;
-every import is lazy so mock mode never needs the package. Any runtime failure
-raises AdkRunError and app/main.py falls back to the deterministic engine for
-that run (labeled in the SSE stream).
+Selected only when MODE=real, google-adk imports, and ONE of two auth paths is
+configured: GOOGLE_API_KEY (api_key), or GOOGLE_GENAI_USE_VERTEXAI truthy +
+GOOGLE_CLOUD_PROJECT (vertex_adc — Application Default Credentials; no key).
+The engine event labels which path was used. Every import is lazy so mock mode
+never needs the package. Any runtime failure raises AdkRunError; app/main.py
+falls back to the deterministic engine ONLY if it happened before approval.
 """
 from __future__ import annotations
 
@@ -32,17 +34,30 @@ class AdkRunError(Exception):
     """The ADK engine could not complete the run; caller falls back."""
 
 
+def auth_path() -> str | None:
+    """Which Gemini auth path is configured: "vertex_adc" (Vertex AI via
+    Application Default Credentials), "api_key", or None."""
+    if config.GOOGLE_GENAI_USE_VERTEXAI and config.GOOGLE_CLOUD_PROJECT:
+        return "vertex_adc"
+    if config.GOOGLE_API_KEY:
+        return "api_key"
+    return None
+
+
 def availability() -> tuple[bool, str]:
-    """(usable, reason). Usable iff MODE=real + GOOGLE_API_KEY + importable."""
+    """(usable, reason). Usable iff MODE=real + an auth path + importable.
+    On success the reason names the auth path ("api_key" | "vertex_adc")."""
     if config.MODE != "real":
         return False, "mock mode"
-    if not config.GOOGLE_API_KEY:
-        return False, "no GOOGLE_API_KEY"
+    auth = auth_path()
+    if auth is None:
+        return False, ("no GOOGLE_API_KEY (or set GOOGLE_GENAI_USE_VERTEXAI=1 "
+                       "+ GOOGLE_CLOUD_PROJECT for Vertex ADC)")
     try:
         _import_adk()
     except ImportError as exc:
         return False, f"google-adk not importable: {exc}"
-    return True, "ok"
+    return True, auth
 
 
 def _import_adk() -> dict[str, Any]:
@@ -91,8 +106,17 @@ async def run_adk(client, event: dict, emit: Emit, run_id: str, *,
                   approval_timeout: float = 300.0, pace: float = 0.0) -> dict:
     """Drive the loop with Gemini + ADK, emitting the same SSE sequence as the
     deterministic engine. Raises AdkRunError on any failure (caller falls back)."""
-    os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "FALSE")
-    os.environ.setdefault("GOOGLE_API_KEY", config.GOOGLE_API_KEY or "")
+    auth = auth_path() or "api_key"
+    if auth == "vertex_adc":
+        # google-genai/ADK pick these up natively: Vertex AI + ADC, no API key.
+        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "TRUE"
+        if config.GOOGLE_CLOUD_PROJECT:
+            os.environ.setdefault("GOOGLE_CLOUD_PROJECT", config.GOOGLE_CLOUD_PROJECT)
+        if config.GOOGLE_CLOUD_LOCATION:
+            os.environ.setdefault("GOOGLE_CLOUD_LOCATION", config.GOOGLE_CLOUD_LOCATION)
+    else:
+        os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "FALSE")
+        os.environ.setdefault("GOOGLE_API_KEY", config.GOOGLE_API_KEY or "")
     try:
         adk = _import_adk()
     except ImportError as exc:
@@ -108,7 +132,12 @@ async def run_adk(client, event: dict, emit: Emit, run_id: str, *,
         "alias": config.ALIAS,
         "alias_target": await asyncio.to_thread(client.alias_target, config.ALIAS),
     })
-    await emit("engine", {"name": "adk", "model": config.GEMINI_MODEL})
+    await emit("engine", {"name": "adk", "model": config.GEMINI_MODEL, "auth": auth})
+
+    # Memory layer: recall prior incidents for this pipeline right after start.
+    memory = await asyncio.to_thread(sentinel.recall_memory, client)
+    prior_count = int(memory.get("prior_count", 0))
+    await emit("memory", {"agent": "sentinel", **memory})
 
     status = await asyncio.to_thread(
         sentinel.read_status, client, day, event.get("pipeline_status", "UNKNOWN"))
@@ -137,12 +166,17 @@ async def run_adk(client, event: dict, emit: Emit, run_id: str, *,
 
     # --- Guardian's only tool: the token-gated consequential action ---
     async def quarantine_and_flip(day: str, today_index: str, yesterday_index: str) -> dict:
-        """Quarantine rows missing the revenue field from today_index and atomically
-        flip the read alias to yesterday_index. Pauses for human approval; performs
-        NO writes unless the operator approves within the timeout."""
-        plan = guardian.build_plan(today_index, yesterday_index, day)
-        registry.request(run_id, plan)
+        """Quarantine rows missing the revenue field from today_index, atomically
+        flip the read alias to yesterday_index, then stage a recovery reindex
+        (quarantine -> {today}-repaired, renaming the mutated field back).
+        Pauses for human approval; performs NO writes unless the operator
+        approves within the timeout. One approval covers all three writes."""
         diagnosis = ctx.get("diagnosis")
+        repair_from = (sorted(diagnosis.added)[0]
+                       if diagnosis and diagnosis.added else "gross_amount")
+        plan = guardian.build_plan(today_index, yesterday_index, day,
+                                   repair_from=repair_from)
+        registry.request(run_id, plan)
         await emit("awaiting_approval", {
             "action": "quarantine", "plan": plan,
             "index": today_index, "target_index": yesterday_index,
@@ -156,7 +190,8 @@ async def run_adk(client, event: dict, emit: Emit, run_id: str, *,
         try:
             gres = await asyncio.to_thread(
                 guardian.act, client, today_index, yesterday_index, day,
-                registry=registry, run_id=run_id, token=token)
+                registry=registry, run_id=run_id, token=token,
+                repair_from=repair_from)
         except guardian.ApprovalDenied as exc:
             ctx["vetoed"] = str(exc)
             return {"status": "vetoed", "reason": str(exc)}
@@ -169,13 +204,21 @@ async def run_adk(client, event: dict, emit: Emit, run_id: str, *,
             "step": "alias_flip", "alias": gres.alias,
             "from": gres.alias_was, "to": gres.alias_now,
             "detail": f"update_aliases: {gres.alias} {gres.alias_was} -> {gres.alias_now}"})
+        await emit("teletype", {
+            "line": (f"> _reindex {gres.q_index} -> {gres.repaired_index}  "
+                     f"painless: {gres.repair_rename}  ({gres.repaired_docs} docs)")})
+        await emit("repair", {
+            "agent": "guardian", "repaired_index": gres.repaired_index,
+            "docs": gres.repaired_docs, "rename": gres.repair_rename})
         v = gres.verify
         await emit("verify", v)
         await emit("teletype", {
             "line": (f"  -> target={v['target']}  rows={v['row_count']}  "
                      f"null_rate={v['null_rate']:.3f}  avg={v['avg_amount']:.2f}  OK")})
         return {"status": "ok", "quarantined": gres.quarantined,
-                "alias_now": gres.alias_now, "verify": v}
+                "alias_now": gres.alias_now,
+                "repaired_index": gres.repaired_index,
+                "repaired_docs": gres.repaired_docs, "verify": v}
 
     mcp_kwargs: dict[str, Any] = {"url": config.MCP_URL}
     if config.MCP_AUTH_HEADER:
@@ -191,7 +234,11 @@ async def run_adk(client, event: dict, emit: Emit, run_id: str, *,
             f"z threshold={config.Z_THRESHOLD}. Pipeline status doc says "
             f"{status.get('status')!r}. Baselines (mean/std): "
             + ", ".join(f"{m}={b['mean']:.4f}/{b['std']:.4f}" for m, b in baselines.items())
-            + ". Reply with ONLY one JSON object, no markdown fences.")
+            + f". Memory: {prior_count} prior incident(s) recalled for this pipeline "
+            f"from the silentbreak-incidents index"
+            + (f" (last: {memory.get('last_summary')})" if memory.get("last_summary") else "")
+            + f"; a remediated run would be incident #{prior_count + 1}."
+            + " Reply with ONLY one JSON object, no markdown fences.")
 
     sentinel_agent = adk["LlmAgent"](
         name="sentinel", model=config.GEMINI_MODEL, tools=[read_tools],
@@ -236,8 +283,13 @@ async def run_adk(client, event: dict, emit: Emit, run_id: str, *,
             "{sentinel_findings}, diagnosis={rootcause_diagnosis}, guardian="
             "{guardian_result}. Output JSON: "
             '{"report": str} where report is a terse typewriter-style examination '
-            "record: FINDING / CAUSE / EXPOSURE / ACTION / VERIFICATION / DISPOSITION "
-            "lines separated by newlines."))
+            "record: FINDING / CAUSE / MEMORY / EXPOSURE / ACTION / REPAIR / "
+            "VERIFICATION / DISPOSITION lines separated by newlines. The MEMORY "
+            f"line must state this is incident #{prior_count + 1} for this pipeline"
+            + (" and that the agent recalled the prior remediation."
+               if prior_count else " (no prior incidents recalled).")
+            + " The REPAIR line must note the repaired index is staged for "
+            "validation while the alias serves stale-but-correct data."))
 
     pipeline = adk["SequentialAgent"](
         name="silentbreak_pipeline",
@@ -323,9 +375,11 @@ async def run_adk(client, event: dict, emit: Emit, run_id: str, *,
     if gres is None or diagnosis is None:
         raise AdkRunError("ADK run produced no actionable guardian/diagnosis output")
     incident = await asyncio.to_thread(
-        scribe.record, client, contradiction_obj, diagnosis, gres, day,
-        engine="adk", approved_token_id=ctx.get("token_id"),
-        report=ctx.get("report"), report_author=config.GEMINI_MODEL)
+        lambda: scribe.record(client, contradiction_obj, diagnosis, gres, day,
+                              engine="adk", approved_token_id=ctx.get("token_id"),
+                              report=ctx.get("report"),
+                              report_author=config.GEMINI_MODEL,
+                              prior_count=prior_count))
     await emit("incident", {"doc": incident})
     out = {"result": "remediated", "today_index": today, "yesterday_index": yesterday,
            "incident": incident, "duration_ms": duration_ms}

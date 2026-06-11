@@ -8,10 +8,16 @@ demo:            ## Full detect->diagnose->quarantine loop in-memory (stdlib onl
 	$(PYTHON) scripts/run_demo.py
 
 venv:            ## One-time: create .venv and install real-mode deps (needs Python 3.11+)
-	@python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' || \
-		{ echo "ERROR: python3 is $$(python3 -V 2>&1); SilentBreak needs 3.11+."; \
-		  echo "Fix: install a newer Python (e.g. \`brew install python\`) and re-run \`make venv\`."; exit 1; }
-	python3 -m venv .venv
+	@PY=""; for cand in python3.12 python3.11 python3.13 python3; do \
+		if command -v $$cand >/dev/null 2>&1 && \
+		   $$cand -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then \
+			PY=$$cand; break; \
+		fi; \
+	done; \
+	[ -n "$$PY" ] || { echo "ERROR: no Python 3.11+ found (tried python3.12, python3.11, python3.13, python3; python3 is $$(python3 -V 2>&1))."; \
+		echo "Fix: install a newer Python (e.g. \`brew install python@3.12\`) and re-run \`make venv\`."; exit 1; }; \
+	echo "[venv] using $$PY ($$($$PY -V 2>&1))"; \
+	$$PY -m venv .venv
 	.venv/bin/python -m pip install -r requirements.txt
 
 check-python:    ## Guard: real mode needs Python 3.11+ (stock macOS python3 is 3.9)

@@ -34,25 +34,28 @@ corrupt."
 On screen: stay on the UI; point at the MODE/ENGINE badges. The words MUST match the
 badge on screen (two scripts below; the badge decides).
 
-Say, if the badge reads ADK (GOOGLE_API_KEY is set and the Gemini engine is live):
+Say, if the badge reads ADK (Gemini credentials are set and the engine is live):
 "It is a Google ADK agent pipeline driven by Gemini 3.5 Flash, and every read goes
-through the official Elastic MCP server into Elasticsearch, where the data, the detector,
-and the actuator all live. Watch it work."
+through Elastic's MCP server into Elasticsearch, where the data, the detector, the
+actuator, and the agent's memory all live. Watch it work."
 
 Say, if the badge reads DETERMINISTIC FALLBACK (no key on this machine): "The agent loop
 is built on Google's ADK with Gemini 3.5 Flash; this take runs the labeled deterministic
-engine because no Gemini key is configured here, and every read still goes through the
-official Elastic MCP server into Elasticsearch, where the data, the detector, and the
-actuator all live. Watch it work."
+engine because no Gemini key is configured here, and every read still goes through
+Elastic's MCP server into Elasticsearch, where the data, the detector, the actuator, and
+the agent's memory all live. Watch it work."
 
 ### 0:35 to 1:10 | The examination (click RUN EXAMINATION)
 
-On screen: needles draw left to right across the chart paper as the Sentinel sweeps nine
-healthy days into today. The breach spikes, red z=40 line inks in, the CONTRADICTION
+On screen: the Sentinel lamp lights on the four-lamp agent rail; a memory-recall line
+notes any prior incidents read back from silentbreak-incidents. Needles draw left to
+right across the chart paper as the Sentinel sweeps nine healthy days into today (both
+engines sweep exactly nine). The breach spikes, red z=40 line inks in, the CONTRADICTION
 stamp slams over the green tile. The teletype prints the raw ES|QL.
 
-Say: "The Sentinel fingerprints each partition through MCP: null rate, average amount,
-distinct SKUs, z-scored against a rolling baseline. History is calm. Today the needle
+Say: "First the Sentinel recalls prior incidents from Elasticsearch: the agent's memory.
+Then it fingerprints each partition through MCP: null rate, average amount, distinct
+SKUs, z-scored against a rolling baseline. Nine healthy days, calm. Today the needle
 goes off the paper: null rate from point two percent to one hundred percent, z of forty,
 while the status doc still says SUCCESS. That contradiction is the alarm."
 
@@ -68,25 +71,30 @@ number an estimate."
 
 ### 1:35 to 2:10 | The stamp (the centerpiece, slow down here)
 
-On screen: the operator gate shows the four-step plan. Press and hold the APPROVE stamp;
-let the ring fill all the way; release; the QUARANTINE APPROVED impression slams down.
+On screen: the operator gate shows the plan, which states the stale-data trade-off in
+writing. Press and hold the APPROVE stamp; let the ring fill all the way; release; the
+QUARANTINE APPROVED impression slams down.
 
 Say: "Here is the line the agent will not cross alone. It proposes: quarantine the corrupt
-rows, flip the alias to the last known good index, verify, and stay reversible. Nothing
+rows, flip the alias to the last known good index, repair, verify, and stay reversible.
+And it names the cost out loud: until the repaired data is validated, downstream reads
+yesterday: stale, but correct. That trade-off is mine to make, not the agent's. Nothing
 mutates Elasticsearch until I hold this stamp. The hold mints a single-use token; the
 Guardian consumes it before any write. Rejecting means zero writes. I approve."
 
-(If you have ten spare seconds, mention: "the stamp is a real cryptographic gate, not a
+(If you have ten spare seconds, mention: "the stamp is a single-use token gate, not a
 confirm dialog.")
 
-### 2:10 to 2:35 | The heal (teletype)
+### 2:10 to 2:35 | The heal and the repair (teletype)
 
-On screen: guardian actions print; the verify line shows the downstream query healthy.
-Point at the teletype: rows=10000, null_rate=0.002, OK.
+On screen: guardian actions print: quarantine, alias flip, then the repair line showing
+the quarantined rows reindexed into the -repaired index. The verify line shows the
+downstream query healthy. Point at the teletype: rows=10000, null_rate=0.002, OK.
 
-Say: "Ten thousand corrupt rows reindexed into quarantine, and one atomic update_aliases
-flips revenue_current to yesterday. The downstream revenue query, live on the teletype,
-is healthy again. Every consumer healed at once, no code changes anywhere."
+Say: "Ten thousand corrupt rows into quarantine, one atomic update_aliases flips
+revenue_current to yesterday, and then the Guardian repairs: the quarantined rows are
+reindexed into a repaired partition, gross_amount renamed back to amount. The downstream
+query is healthy again, and the data is fixed, not just hidden."
 
 ### 2:35 to 2:55 | The reverse (the proof)
 
@@ -114,3 +122,8 @@ are the same code paths.
 - Do not claim Gemini wrote the report if the badge says DETERMINISTIC FALLBACK.
 - Do not narrate the ADK version of the 0:20 beat unless the badge on screen reads ADK;
   the two scripts exist so the recording is honest either way.
+- Do not say the alias points at the repaired index; it deliberately stays on yesterday
+  (stale-but-correct) until the repaired partition is validated. Say the trade-off, do
+  not paper over it.
+- Do not skip the stale-data sentence at the stamp; naming the cost is the point of the
+  gate.

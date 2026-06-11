@@ -40,6 +40,27 @@
   </div>
 </header>
 
+<!-- examining officers: one brass nameplate + lamp per agent -->
+<section id="agent-rail" aria-label="Examining officers — one lamp per agent, lit while that agent works">
+  <div class="rail-caption">EXAMINING<br>OFFICERS</div>
+  <div class="plaque" id="lamp-sentinel" data-state="idle">
+    <span class="lamp" aria-hidden="true"></span>
+    <span class="plate"><span class="plaque-name">SENTINEL</span><span class="plaque-role">DETECTION</span></span>
+  </div>
+  <div class="plaque" id="lamp-rootcause" data-state="idle">
+    <span class="lamp" aria-hidden="true"></span>
+    <span class="plate"><span class="plaque-name">ROOTCAUSE</span><span class="plaque-role">DIAGNOSIS</span></span>
+  </div>
+  <div class="plaque" id="lamp-guardian" data-state="idle">
+    <span class="lamp" aria-hidden="true"></span>
+    <span class="plate"><span class="plaque-name">GUARDIAN</span><span class="plaque-role">REMEDIATION</span></span>
+  </div>
+  <div class="plaque" id="lamp-scribe" data-state="idle">
+    <span class="lamp" aria-hidden="true"></span>
+    <span class="plate"><span class="plaque-name">SCRIBE</span><span class="plaque-role">RECORD</span></span>
+  </div>
+</section>
+
 <section id="chart-section" aria-label="Strip chart: live metric needles">
   <canvas id="strip"></canvas>
 </section>

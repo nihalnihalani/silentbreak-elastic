@@ -76,6 +76,19 @@ def main():
     client.index_rows(config.partition_index(YESTERDAY), make_healthy_partition())
     client.set_alias(config.ALIAS, config.partition_index(YESTERDAY))
 
+    # Memory layer: this pipeline broke once before (a prior incident lives in
+    # silentbreak-incidents). The Sentinel recalls it at run start — the agent
+    # remembers, so the report can say "this is incident #2".
+    client.index_incident({
+        "incident_id": "SB-2026-05-18", "day": "2026-05-18",
+        "contradiction": ("CONTRADICTION: status=SUCCESS, data=CORRUPT — "
+                          "null_rate 0.002→0.41 (z=16)"),
+        "root_cause": ("Upstream partial outage nulled 41% of revenue rows; "
+                       "quarantined and alias flipped to last known good."),
+        "rows_quarantined": 4100, "alias_flipped_to": "sales-2026-05-17",
+        "engine": "deterministic", "status": "RESOLVED",
+    })
+
     # land today's corrupted partition; the pipeline reports SUCCESS
     today_index = config.partition_index(TODAY)
     client.index_rows(today_index, make_corrupted_partition())
@@ -97,14 +110,25 @@ def main():
         print(out["message"]); return
 
     c, d, g, inc = out["contradiction"], out["diagnosis"], out["guardian"], out["incident"]
+    m = out.get("memory") or {}
+    print(f"[Memory   ] recalled {m.get('prior_count', 0)} prior incident(s) for this "
+          f"pipeline from {config.INCIDENT_INDEX}")
+    if m.get("last_summary"):
+        print(f"            last: {m['last_id']} — {m['last_summary']}")
+    print("[Sentinel ] sweep: nine trailing healthy days on the strip chart, then today —")
     print("[Sentinel ] " + c.headline())
     print("[RootCause] " + d.sentence)
     print("[approval ] operator pressed APPROVE (auto-approved in CLI demo)")
     print("[Guardian ] action:")
     for a in g.actions:
         print("            - " + a)
+    print(f"[Guardian ] repair: {g.repaired_docs} rows re-keyed ({g.repair_rename}) -> "
+          f"{g.repaired_index}")
+    print(f"            staged for validation; alias stays on last-known-good "
+          f"(stale-but-correct) until re-pointed")
     print(f"[finance  ] alias now -> {client.alias_target(config.ALIAS)} (last-known-good, clean)")
-    print(f"[Scribe   ] incident {inc['incident_id']} -> {inc['status']}")
+    print(f"[Scribe   ] incident {inc['incident_id']} -> {inc['status']} "
+          f"(incident #{inc['incident_number']} for this pipeline)")
 
     # Prove reversibility (it's a real state change, not a canned video)
     print("\n[verify   ] flipping the alias BACK to prove it's a real, reversible state change...")

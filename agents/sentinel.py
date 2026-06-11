@@ -49,6 +49,29 @@ class Contradiction:
                 f"{self.metric} {self.baseline_mean:.3f}→{self.value:.3f} (z={self.z:.0f})")
 
 
+def recall_memory(client) -> dict:
+    """Memory layer: at run start, recall prior incidents for this pipeline
+    from silentbreak-incidents (MCP search w/ es-py fallback in real mode,
+    in-memory store in mock). Payload feeds the `memory` SSE event and the
+    Scribe's "incident #N+1" reference."""
+    try:
+        prior = client.recall_incidents()
+    except Exception:
+        prior = []
+    payload: dict = {"prior_count": len(prior), "last_id": None, "last_summary": None}
+    if prior:
+        last = prior[0]
+        what = str(last.get("root_cause") or last.get("contradiction") or "incident")
+        if len(what) > 120:
+            what = what[:117] + "..."
+        payload["last_id"] = last.get("incident_id")
+        payload["last_summary"] = (
+            f"{last.get('day', '?')}: {what} — action: quarantined "
+            f"{last.get('rows_quarantined', '?')} rows, alias -> "
+            f"{last.get('alias_flipped_to', '?')}")
+    return payload
+
+
 def read_status(client, day: str, fallback: str = "UNKNOWN") -> dict:
     """The status doc is the lie this whole project exists to catch."""
     doc = client.get_status(day)

@@ -204,9 +204,42 @@ class ElasticClient:
         rows = self._mock_rows(source_index)
         bad = [r for r in rows if r.get(field) is None]
         clean = [r for r in rows if r.get(field) is not None]
-        self.quarantine.setdefault(q_index, []).extend(bad)
+        # Upsert semantics, matching real-mode reindex (same doc ids overwrite,
+        # so repeated runs over re-landed data never double-count).
+        q = self.quarantine.setdefault(q_index, [])
+        bad_ids = {r.get("order_id") for r in bad}
+        q[:] = [r for r in q if r.get("order_id") not in bad_ids] + bad
         self.indices[source_index] = clean
         return len(bad)
+
+    def repair_reindex(self, q_index: str, repaired_index: str,
+                       from_field: str, to_field: str) -> int:
+        """Recovery reindex: quarantine -> repaired index, renaming the mutated
+        revenue field back (painless script in real mode; simulated in mock).
+        The repaired index is staged for validation; the alias is NOT touched
+        here — it stays on last-known-good until a human re-points it."""
+        if self.mode == "real":
+            self.es.indices.delete(index=repaired_index, ignore_unavailable=True)
+            script = (
+                f"if (ctx._source.containsKey('{from_field}')) "
+                f"{{ ctx._source['{to_field}'] = ctx._source.remove('{from_field}'); }}"
+            )
+            res = self.es.reindex(
+                source={"index": q_index},
+                dest={"index": repaired_index},
+                script={"source": script, "lang": "painless"},
+                wait_for_completion=True,
+                refresh=True,
+            )
+            return int(res.get("created", 0)) + int(res.get("updated", 0))
+        repaired: list[dict] = []
+        for row in self.quarantine.get(q_index, []):
+            fixed = dict(row)
+            if from_field in fixed:
+                fixed[to_field] = fixed.pop(from_field)
+            repaired.append(fixed)
+        self.indices[repaired_index] = repaired
+        return len(repaired)
 
     def update_alias(self, alias: str, target_index: str) -> str | None:
         """THE consequential action: one atomic alias flip. Returns previous target."""
@@ -236,6 +269,38 @@ class ElasticClient:
             self.es.index(index=config.INCIDENT_INDEX, id=doc["incident_id"], document=doc)
             self.refresh(config.INCIDENT_INDEX)
         self.incidents.append(dict(doc))
+
+    def recall_incidents(self) -> list[dict]:
+        """Memory layer: prior incidents for THIS pipeline (world-scoped by the
+        incident-id prefix), newest first. Real mode reads via the MCP `search`
+        tool first and falls back to elasticsearch-py (same pattern as
+        list_incidents); mock mode reads the in-memory store."""
+        tag = f"SB-{config.world_tag().upper()}"
+
+        def _mine(docs: list[dict]) -> list[dict]:
+            out = []
+            for d in docs:
+                iid = str(d.get("incident_id", ""))
+                # belongs to this world: right prefix AND the remainder is a date
+                # (so the default world "SB-" never claims "SB-SMOKE-..." docs)
+                if iid.startswith(tag) and iid[len(tag):][:1].isdigit():
+                    out.append(d)
+            return sorted(out, key=lambda d: str(d.get("day", "")), reverse=True)
+
+        if self.mode == "real":
+            body = {"query": {"match_all": {}}, "size": 100}
+            try:  # preferred path: the official Elastic MCP `search` tool
+                hits = self._search_hits(config.INCIDENT_INDEX, body)
+                return _mine([h.get("_source", h) for h in hits])
+            except Exception:
+                pass
+            try:  # fallback: direct elasticsearch-py read (still real Elastic)
+                res = self.es.search(index=config.INCIDENT_INDEX, size=100,
+                                     query={"match_all": {}})
+                return _mine([h["_source"] for h in res["hits"]["hits"]])
+            except Exception:
+                return []
+        return _mine(list(self.incidents))
 
     def list_incidents(self) -> list[dict]:
         if self.mode == "real":

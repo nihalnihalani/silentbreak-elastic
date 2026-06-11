@@ -32,6 +32,18 @@ MCP_AUTH_HEADER: str | None = os.getenv("MCP_AUTH_HEADER") or None
 GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or None
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
+
+def _truthy(value: str | None) -> bool:
+    return str(value or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+# Vertex ADC auth path: with GOOGLE_GENAI_USE_VERTEXAI truthy + GOOGLE_CLOUD_PROJECT
+# set, google-genai/ADK authenticate via Application Default Credentials — no API
+# key needed. The engine event labels which auth path was used.
+GOOGLE_GENAI_USE_VERTEXAI: bool = _truthy(os.getenv("GOOGLE_GENAI_USE_VERTEXAI"))
+GOOGLE_CLOUD_PROJECT: str | None = os.getenv("GOOGLE_CLOUD_PROJECT") or None
+GOOGLE_CLOUD_LOCATION: str | None = os.getenv("GOOGLE_CLOUD_LOCATION") or None
+
 # --- HITL approval ---
 APPROVAL_TTL_SECONDS: int = int(os.getenv("APPROVAL_TTL_SECONDS", "300"))
 

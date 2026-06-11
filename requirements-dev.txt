@@ -1,0 +1,2 @@
+# Dev/test-only dependencies (CI installs requirements-serve.txt + this).
+pytest>=8

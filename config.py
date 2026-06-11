@@ -51,9 +51,30 @@ STATUS_INDEX = "silentbreak-status"  # pipeline status docs (the "green" lie)
 
 # Index naming. The prefix is read at call time so the smoke test can isolate
 # its data with SILENTBREAK_INDEX_PREFIX=sales-smoke- without import-order games.
+def index_prefix() -> str:
+    return os.getenv("SILENTBREAK_INDEX_PREFIX", "sales-")
+
+
+def world_tag() -> str:
+    """Empty for the default world; "smoke-" (etc.) when an alternate prefix is set.
+
+    Namespaces every derived artifact (quarantine indices, incident ids, and the
+    baseline/status doc ids) so a smoke run can never touch the demo world's data.
+    """
+    prefix = index_prefix()
+    if prefix == "sales-":
+        return ""
+    tag = prefix.removeprefix("sales-").strip("-")
+    return f"{tag}-" if tag else ""
+
+
 def partition_index(day: str) -> str:
-    return f"{os.getenv('SILENTBREAK_INDEX_PREFIX', 'sales-')}{day}"
+    return f"{index_prefix()}{day}"
 
 
 def quarantine_index(day: str) -> str:
-    return f"silentbreak-quarantine-{day}"
+    return f"silentbreak-quarantine-{world_tag()}{day}"
+
+
+def incident_id(day: str) -> str:
+    return f"SB-{world_tag().upper()}{day}"

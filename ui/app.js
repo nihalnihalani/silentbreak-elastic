@@ -82,10 +82,13 @@ async function drainTypeQueue() {
     caret.className = "type-caret";
     els.reportBody.appendChild(span);
     els.reportBody.appendChild(caret);
+    // Catch-up: the deeper the backlog, the faster the keys strike, so the
+    // report never lags the action by more than a couple of seconds.
+    const delay = Math.max(2, Math.round(job.speed / (1 + typeQueue.length)));
     for (const ch of job.text) {
       span.textContent += ch;
       els.reportBody.scrollTop = els.reportBody.scrollHeight;
-      await new Promise((r) => setTimeout(r, job.speed));
+      await new Promise((r) => setTimeout(r, delay));
     }
     caret.remove();
     els.reportBody.scrollTop = els.reportBody.scrollHeight;

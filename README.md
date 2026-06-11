@@ -5,7 +5,7 @@
 A human-overseen remediation agent built for the Google Cloud Rapid Agent Hackathon (Elastic partner track). It detects the contradiction between a pipeline's green status and its red data, diagnoses the exact schema mutation, presents the evidence, and only after a human presses-and-holds the APPROVE stamp does it quarantine the poisoned partition and flip the `revenue_current` alias to the last known good index. One atomic call reverses everything.
 
 ```
-$ python scripts/run_demo.py        # zero dependencies, 10 seconds, the whole story
+$ python3 scripts/run_demo.py       # zero dependencies, 10 seconds, the whole story
 ```
 
 ## The thesis
@@ -30,14 +30,14 @@ Every stage names the exact capability that powers it. Remove Elastic and there 
 
 | Loop stage | Elastic capability | Google capability |
 |---|---|---|
-| Detect | ES&#124;QL `STATS COUNT(*), COUNT_DISTINCT(sku)` plus `exists` query, via the **official Elastic MCP server** (`esql`, `search` tools) | Gemini 3.5 Flash reasons over MCP tool results (ADK engine); transparent z-score math (deterministic engine) |
+| Detect | ES&#124;QL `STATS COUNT(*), COUNT_DISTINCT(sku)` plus `exists` query, via the **official Elastic MCP server** (`esql`, `search` tools) | Gemini 3.5 Flash reasons over MCP tool results (ADK engine; needs `GOOGLE_API_KEY`, see "What is verified" below); transparent z-score math (deterministic engine) |
 | Diagnose | MCP `get_mappings` diff, today vs yesterday | Gemini writes the diagnosis prose (ADK); template prose (deterministic), `report_author` recorded honestly |
 | Approve | nothing happens here, by design | ApprovalRegistry token gate shared by **both** engines (chosen deliberately over ADK's confirmation flow) |
 | Act | `_reindex` quarantine plus **one atomic `update_aliases`** (elasticsearch-py) | Guardian is a single FunctionTool gated on the token |
 | Verify | ES&#124;QL through the alias via MCP | same event stream either way |
 | Record | incident doc into `silentbreak-incidents` | ADK `SequentialAgent` orchestrates Sentinel, RootCause, Guardian, Scribe |
 
-**The honest read/write split:** in real mode all *reads* (ES|QL stats, mappings, status doc, verification query) go through the official Elastic MCP server (`docker.elastic.co/mcp/elasticsearch`, streamable HTTP). The MCP server exposes no write tools, so *writes* (seed, quarantine reindex, alias flip, incident doc) go through elasticsearch-py directly. MCP tool schemas are discovered at runtime from `tools/list` and locked by the smoke test: `esql{query}`, `get_mappings{index}`, `search{fields,index,query_body}`, `list_indices{index_pattern}`.
+**The honest read/write split:** in real mode all *reads* (ES|QL stats, mappings, status doc, verification query) go through the official Elastic MCP server (`docker.elastic.co/mcp/elasticsearch`, streamable HTTP). The MCP server exposes no write tools, so *writes* (seed, quarantine reindex, alias flip, incident doc) go through elasticsearch-py directly. MCP tool schemas are discovered at runtime from `tools/list` and locked by the smoke test: `esql{query}`, `get_mappings{index}`, `search{fields,index,query_body}`, `list_indices{index_pattern}`. One stated exception: if the MCP `search` response arrives in an unexpected shape, the null-count helper falls back to a direct `_count` (still a real Elasticsearch read, just not via MCP) so a run survives; the code comments say so.
 
 ## Architecture
 
@@ -70,36 +70,38 @@ Every stage names the exact capability that powers it. Remove Elastic and there 
 
 ## Quickstart A: mock, 10 seconds, zero setup
 
-Python 3.11+ standard library only. No packages, no docker, no keys.
+Python standard library only (the demo script itself runs even on the stock macOS 3.9). No packages, no docker, no keys.
 
 ```
-python scripts/run_demo.py
+python3 scripts/run_demo.py
 ```
 
-To see the full Polygraph UI against the same in-memory Elastic:
+To see the full Polygraph UI against the same in-memory Elastic (this and everything below needs Python 3.11+; `make venv` creates `.venv` and every make target auto-uses it):
 
 ```
-make install     # fastapi + uvicorn (and the real-mode deps)
+make venv        # one-time: .venv + fastapi/uvicorn and the real-mode deps
 make web         # http://localhost:8000  ->  press RUN EXAMINATION
 ```
 
-This is also exactly what the hosted Cloud Run URL serves: fully interactive, deterministic engine, in-memory Elastic, real approval gate.
+Once deployed (Quickstart C), the hosted Cloud Run URL serves exactly this: fully interactive, deterministic engine, in-memory Elastic, real approval gate.
 
 ## Quickstart B: local real mode (Elasticsearch + official Elastic MCP server)
 
 ```
-make install
+make venv        # one-time (skip if you did it above); needs Python 3.11+
 make up          # docker compose: Elasticsearch 9.4.2 + Elastic MCP server (http :8080)
 make seed        # 14 days of healthy e-commerce partitions + baselines + SUCCESS status docs
 make inject      # today's silently corrupted partition; alias -> poison; status doc: SUCCESS
 SILENTBREAK_MODE=real make web    # http://localhost:8000
 ```
 
+The make targets guard the Python version: stock macOS `python3` is 3.9, which is too old for the real-mode deps, so `make venv` plus the automatic `.venv` pickup is the supported path.
+
 Press RUN EXAMINATION. Without a `GOOGLE_API_KEY` the run uses the deterministic engine (labeled "DETERMINISTIC FALLBACK (no Gemini key)" in the UI and in the SSE stream) but every read still goes through the MCP server and every write is real. With `GOOGLE_API_KEY` in `.env`, the ADK/Gemini engine drives the same loop through the same gate.
 
 Note for repeated takes: a remediated run really moves the corrupt rows into quarantine, so the poison is consumed. Run `make inject` again between takes. `make reset` wipes the world.
 
-End-to-end assertion suite (isolated `sales-smoke-` prefix, restores your demo alias afterwards):
+End-to-end assertion suite. The smoke run is fully namespaced (`sales-smoke-` partitions, its own quarantine index, baseline/status doc ids, and `SB-SMOKE-` incident ids) so it never touches demo data, and it restores your demo alias afterwards:
 
 ```
 make smoke       # prints SMOKE PASS on a green stack
@@ -107,12 +109,14 @@ make smoke       # prints SMOKE PASS on a green stack
 
 ## Quickstart C: cloud
 
-**Hosted URL (what judges click):** the Cloud Run image defaults to mock mode so it needs zero secrets and is fully interactive.
+**Hosted URL (what judges click):** the Cloud Run image defaults to mock mode so it needs zero secrets and is fully interactive. Deploying is one command (run it yourself; see the submission checklist for status):
 
 ```
 make deploy-cloud-run
 # = gcloud run deploy silentbreak --source . --region us-central1 --allow-unauthenticated
 ```
+
+The root `Dockerfile` installs only `requirements-serve.txt` (fastapi, uvicorn, elasticsearch, mcp, dotenv) to keep the image small. The ADK/Gemini engine needs the full `requirements.txt`, so the hosted service always runs the labeled deterministic engine; the loop, the gate, and the UI are identical.
 
 **Real mode on cloud** is configuration only: set `SILENTBREAK_MODE=real`, `ES_URL` plus `ELASTIC_API_KEY` (or `ELASTIC_CLOUD_ID`), and point `MCP_URL` at a reachable MCP server. Elastic Agent Builder (GA in Elastic 9.4) exposes an MCP endpoint at `{KIBANA_URL}/api/agent_builder/mcp`; pass its key via `MCP_AUTH_HEADER="ApiKey ..."`. The standalone Elastic MCP server logs that it is superseded by the Agent Builder endpoint, which is exactly why both are supported through the same two variables. Copy `.env.example` to `.env` to configure everything.
 
@@ -129,9 +133,10 @@ The UI is a polygraph examination, because that is literally what the agent does
 Everything above the Roadmap heading is exercised by code in this repo:
 
 - `make demo` runs the full loop on the Python standard library and exits 0.
-- `make smoke` asserts the real path end to end against docker: MCP tool discovery, seed, inject, contradiction on `null_rate` with z near 40, diagnosis naming `gross_amount`, token-gated quarantine plus alias flip, downstream null_rate < 0.01 through the alias, incident persisted, reverse, cleanup, demo alias restored.
+- `make smoke` asserts the real path end to end against docker: MCP tool discovery, seed, inject, contradiction on `null_rate` with z near 40, diagnosis naming `gross_amount`, token-gated quarantine plus alias flip, downstream null_rate < 0.01 through the alias, incident persisted with a smoke-namespaced id, smoke-namespaced quarantine index holding exactly its own rows, reverse, cleanup, demo alias restored.
 - The web UI loop (run, SSE stream, press-and-hold approve, flip, verify, reverse; plus the reject path with zero writes) was verified in a real browser in both mock mode and real mode with the deterministic engine.
 - The ADK/Gemini engine path (`agents/adk_pipeline.py`) imports cleanly, is wired to the same gate and event stream, and falls back to the deterministic engine on any runtime error. It requires a `GOOGLE_API_KEY`, which this build environment did not have, so it has **not** been executed against the live Gemini API. The engine in use is always labeled honestly in the SSE stream, the UI badge, and the incident doc (`engine`, `report_author`).
+- `make deploy-cloud-run` has not been executed from this build environment; until you run it there is no hosted URL. The image itself builds.
 
 ## Scope and Roadmap
 
@@ -167,7 +172,9 @@ integrations/    elastic_client (mock + real), mcp_client (official mcp SDK, str
 app/             FastAPI + per-run EventBus (SSE with buffer replay)
 ui/              the Polygraph: index.html, styles.css, app.js, no build step
 scripts/         run_demo (stdlib), seed_baseline, inject_drift, reset_world, smoke_real + smoke.sh
-docker/          Cloud Run image       docker-compose.yml   ES 9.4.2 + Elastic MCP server
+docs/            DEMO_SCRIPT.md (recording plan), BUILD_SPEC.md (internal build spec, kept for transparency)
+Dockerfile       Cloud Run image (requirements-serve.txt only)
+docker-compose.yml   ES 9.4.2 + the official Elastic MCP server
 ```
 
 ## License

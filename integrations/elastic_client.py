@@ -81,15 +81,21 @@ class ElasticClient:
         self.aliases[alias] = index
 
     def put_baseline(self, metric: str, mean: float, std: float) -> None:
-        doc = {"metric": metric, "mean": mean, "std": max(std, 1e-9)}
+        # Doc id and scope are world-prefixed so a smoke run never reads/writes
+        # the demo world's baselines (same scheme as scripts/seed_baseline.py).
+        prefix = config.index_prefix()
+        doc = {"metric": metric, "mean": mean, "std": max(std, 1e-9), "scope": prefix}
         if self.mode == "real":
-            self.es.index(index=config.BASELINE_INDEX, id=metric, document=doc)
+            self.es.index(index=config.BASELINE_INDEX, id=f"{prefix}{metric}", document=doc)
             self.refresh(config.BASELINE_INDEX)
         self.baselines[metric] = {"mean": doc["mean"], "std": doc["std"]}
 
     def get_baseline(self, metric: str) -> dict:
         if self.mode == "real":
-            body = {"query": {"match": {"metric": metric}}, "size": 1}
+            # Exact doc-id lookup (seed writes id = f"{prefix}{metric}") so the
+            # smoke world and the demo world can never read each other's stats.
+            doc_id = f"{config.index_prefix()}{metric}"
+            body = {"query": {"ids": {"values": [doc_id]}}, "size": 1}
             hits = self._search_hits(config.BASELINE_INDEX, body)
             if hits:
                 src = hits[0].get("_source", hits[0])
@@ -100,14 +106,18 @@ class ElasticClient:
     # ---- pipeline status (the "green" lie lives in silentbreak-status) ----
     def index_status(self, doc: dict) -> None:
         """doc = {"day": ..., "run": "#4471", "status": "SUCCESS"}"""
+        prefix = config.index_prefix()
         if self.mode == "real":
-            self.es.index(index=config.STATUS_INDEX, id=doc["day"], document=doc)
+            self.es.index(index=config.STATUS_INDEX, id=f"{prefix}{doc['day']}",
+                          document={**doc, "scope": prefix})
             self.refresh(config.STATUS_INDEX)
         self.status[doc["day"]] = dict(doc)
 
     def get_status(self, day: str) -> dict | None:
         if self.mode == "real":
-            body = {"query": {"match": {"day": day}}, "size": 1}
+            # Exact doc-id lookup (seed writes id = f"{prefix}{day}"), world-scoped.
+            doc_id = f"{config.index_prefix()}{day}"
+            body = {"query": {"ids": {"values": [doc_id]}}, "size": 1}
             hits = self._search_hits(config.STATUS_INDEX, body)
             return hits[0].get("_source", hits[0]) if hits else None
         return self.status.get(day)

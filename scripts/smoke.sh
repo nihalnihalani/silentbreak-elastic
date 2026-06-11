@@ -5,7 +5,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PYTHON="${PYTHON:-python3}"
+# Auto-use the project venv when present (real mode needs Python 3.11+).
+PYTHON="${PYTHON:-$([ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)}"
 STEP="start"
 trap 'status=$?; if [ $status -ne 0 ]; then echo "SMOKE FAIL at step: ${STEP} (exit ${status})"; fi' EXIT
 

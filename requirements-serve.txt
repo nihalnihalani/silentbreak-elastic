@@ -1,0 +1,9 @@
+# Serving-only dependencies for the Cloud Run image (keeps it slim).
+# The hosted demo runs MODE=mock; real mode against external ES/MCP also works.
+# The ADK/Gemini engine needs the full requirements.txt (google-adk stack);
+# without it the app runs the labeled deterministic engine.
+fastapi>=0.115
+uvicorn>=0.30
+elasticsearch>=9.0,<10
+python-dotenv>=1.0
+mcp>=1.0

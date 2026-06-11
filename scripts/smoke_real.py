@@ -146,6 +146,8 @@ def main() -> None:
                           query={"match_all": {}})["hits"]["hits"]
     smoke_incidents = [h for h in incidents if PREFIX in json.dumps(h["_source"])]
     check(len(smoke_incidents) >= 1, f"incident doc persisted ({len(smoke_incidents)} found)")
+    check(all(h["_id"].startswith("SB-SMOKE-") for h in smoke_incidents),
+          "incident ids are smoke-namespaced (never overwrite the demo's incident)")
 
     # ---- f. reverse (prove the flip is a real, reversible state change) ----
     step("reverse")
@@ -153,9 +155,10 @@ def main() -> None:
     check(alias_target_direct(es, config.ALIAS) == today_index,
           f"alias reversed back to {today_index}")
     q_index = config.quarantine_index(day)
+    check("smoke" in q_index, f"quarantine index is smoke-namespaced ({q_index})")
     es.indices.refresh(index=q_index)
     q_count = es.count(index=q_index)["count"]
-    check(q_count > 0, f"quarantine index {q_index} holds {q_count} rows")
+    check(q_count == 2000, f"quarantine index {q_index} holds exactly its own {q_count} rows")
 
     # ---- g. cleanup ----
     step("cleanup")

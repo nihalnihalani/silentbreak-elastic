@@ -11,7 +11,9 @@ runs in about 60 seconds, leaving room for setup and the reverse.
 - [ ] Server: `SILENTBREAK_MODE=real make web` (badge must read DETERMINISTIC FALLBACK
       unless you have a GOOGLE_API_KEY in `.env`, in which case it reads ADK).
 - [ ] Second terminal visible for the cold open: `curl -s localhost:9200/_cat/aliases` and
-      `python scripts/run_demo.py` ready in history.
+      `python3 scripts/run_demo.py` ready in history.
+- [ ] Check the ENGINE badge now and pick the matching 0:20 narration below. Never read
+      the ADK line over a DETERMINISTIC FALLBACK badge.
 - [ ] Do one full rehearsal, then `make inject`, then record.
 - [ ] Mic check; speak about 20% slower than feels natural.
 
@@ -29,9 +31,17 @@ corrupt."
 
 ### 0:20 to 0:35 | The stack, in one breath
 
-On screen: stay on the UI; point at the MODE/ENGINE badges.
+On screen: stay on the UI; point at the MODE/ENGINE badges. The words MUST match the
+badge on screen (two scripts below; the badge decides).
 
-Say: "It is a Google ADK agent pipeline, Gemini-driven, and every read goes through the
+Say, if the badge reads ADK (GOOGLE_API_KEY is set and the Gemini engine is live):
+"It is a Google ADK agent pipeline driven by Gemini 3.5 Flash, and every read goes
+through the official Elastic MCP server into Elasticsearch, where the data, the detector,
+and the actuator all live. Watch it work."
+
+Say, if the badge reads DETERMINISTIC FALLBACK (no key on this machine): "The agent loop
+is built on Google's ADK with Gemini 3.5 Flash; this take runs the labeled deterministic
+engine because no Gemini key is configured here, and every read still goes through the
 official Elastic MCP server into Elasticsearch, where the data, the detector, and the
 actuator all live. Watch it work."
 
@@ -102,3 +112,5 @@ are the same code paths.
 - Do not skip the reject path mention; oversight is a judging criterion.
 - Do not call the dollar figure exact; it is computed and labeled as an estimate.
 - Do not claim Gemini wrote the report if the badge says DETERMINISTIC FALLBACK.
+- Do not narrate the ADK version of the 0:20 beat unless the badge on screen reads ADK;
+  the two scripts exist so the recording is honest either way.

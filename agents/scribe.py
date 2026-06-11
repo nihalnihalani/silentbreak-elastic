@@ -3,6 +3,8 @@ typewriter examiner report (template prose here; Gemini-written in ADK mode,
 with report_author recorded honestly either way)."""
 from __future__ import annotations
 
+import config
+
 
 def write_report(contradiction, diagnosis, guardian_result, day: str) -> str:
     """Deterministic examiner-report prose for the typewriter panel."""
@@ -31,7 +33,7 @@ def record(client, contradiction, diagnosis, guardian_result, day: str, *,
         report = write_report(contradiction, diagnosis, guardian_result, day)
         report_author = "deterministic-template"
     doc = {
-        "incident_id": f"SB-{day}",
+        "incident_id": config.incident_id(day),  # namespaced per world (smoke vs demo)
         "day": day,
         "contradiction": contradiction.headline(),
         "root_cause": diagnosis.sentence,

@@ -1,3 +1,7 @@
+> Historical artifact: this is the internal build spec the team executed during the
+> hackathon sprint, kept in docs/ for transparency. `README.md` is the source of truth
+> for what the repo actually does today.
+
 # SilentBreak BUILD_SPEC v1 (FINAL — builders execute this verbatim)
 
 Architect-signed spec for the three parallel builders. Deadline today 2:00 PM PT.

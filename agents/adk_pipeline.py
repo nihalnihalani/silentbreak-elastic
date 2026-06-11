@@ -248,8 +248,12 @@ async def run_adk(client, event: dict, emit: Emit, run_id: str, *,
             f"(FROM {today} | STATS ...) for row_count and COUNT_DISTINCT(sku); use the "
             f"search tool with a bool must_not exists query on `{config.REVENUE_FIELD}` "
             f"(size 0, track_total_hits true) to count rows missing revenue; compute "
-            f"null_rate = missing/row_count. Do NOT run AVG on a field that may not "
-            f"exist; if `{config.REVENUE_FIELD}` is absent from get_mappings, avg_amount=0. "
+            f"null_rate = missing/row_count. CRITICAL: ES|QL hard-errors on unknown "
+            f"columns and `{config.REVENUE_FIELD}` may have been mutated away, so your "
+            f"esql STATS may ONLY use COUNT(*) and COUNT_DISTINCT(sku) — never name "
+            f"`{config.REVENUE_FIELD}` in an esql query. If get_mappings shows "
+            f"`{config.REVENUE_FIELD}` absent, avg_amount=0. If any tool call errors, "
+            f"do not retry it more than once — proceed with the data you have. "
             f"z = abs(value-mean)/std per metric. Output JSON: "
             '{"checks": [{"metric": str, "value": num, "baseline_mean": num, '
             '"baseline_std": num, "z": num, "breach": bool}], '

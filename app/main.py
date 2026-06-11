@@ -61,6 +61,7 @@ class RunRecord:
     reversed: bool = False
     incident: dict | None = None
     started_at: float = field(default_factory=time.monotonic)
+    last_event_at: float = field(default_factory=time.monotonic)
 
 
 # On Cloud Run, CPU is throttled when no request is in flight, so a run whose
@@ -121,6 +122,7 @@ def latest_record() -> RunRecord | None:
 
 def _tracking_emit(rec: RunRecord):
     async def emit(type_: str, data: dict) -> None:
+        rec.last_event_at = time.monotonic()
         if type_ in PHASE_BY_EVENT:
             rec.phase = PHASE_BY_EVENT[type_]
         elif type_ == "run_complete":
@@ -128,6 +130,38 @@ def _tracking_emit(rec: RunRecord):
                 data.get("result", ""), "vetoed")
         await rec.bus.emit(type_, data)
     return emit
+
+
+class EngineHung(Exception):
+    pass
+
+
+# A Gemini/MCP call with no client timeout can hang silently forever — it
+# never raises, so the fallback path never fires. The watchdog declares the
+# engine hung when nothing has been emitted for this long, EXCEPT while the
+# run is parked at the human approval gate (operator thinking time is not a
+# hang; the gate has its own TTL).
+ENGINE_IDLE_LIMIT_SECONDS = 120.0
+
+
+async def _with_watchdog(rec: RunRecord, coro) -> dict | None:
+    task = asyncio.create_task(coro)
+    try:
+        while True:
+            done, _ = await asyncio.wait({task}, timeout=10)
+            if done:
+                return task.result()
+            idle = time.monotonic() - rec.last_event_at
+            if rec.phase != "awaiting_approval" and idle > ENGINE_IDLE_LIMIT_SECONDS:
+                raise EngineHung(
+                    f"engine emitted nothing for {int(idle)}s (phase={rec.phase})")
+    finally:
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except BaseException:
+                pass
 
 
 # ------------------------------------------------- mock data (same story as
@@ -222,8 +256,8 @@ async def _execute_run(rec: RunRecord, event: dict | None, engine: str,
 
         if engine == "adk":
             try:
-                rec.result = await adk_pipeline.run_adk(
-                    client, event, emit, rec.run_id, pace=pace)
+                rec.result = await _with_watchdog(rec, adk_pipeline.run_adk(
+                    client, event, emit, rec.run_id, pace=pace))
             except Exception as exc:
                 if registry.state(rec.run_id) == "approved":
                     # The approval token was already minted (and possibly

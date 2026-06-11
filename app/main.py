@@ -369,7 +369,10 @@ async def pipeline_completed(request: Request):
         body = await request.json()
     except Exception:
         return JSONResponse({"error": "invalid_json"}, status_code=400)
-    missing = [k for k in ("day", "today_index", "yesterday_index") if k not in body]
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
+    missing = [k for k in ("day", "today_index", "yesterday_index")
+               if body.get(k) in (None, "")]
     if missing:
         return JSONResponse({"error": "missing_fields", "fields": missing}, status_code=422)
     event = {

@@ -32,6 +32,22 @@ def test_non_json_body_is_400(client):
     assert resp.status_code == 400
 
 
+@pytest.mark.parametrize("scalar", ["42", "null", "true"])
+def test_scalar_json_body_is_400(client, scalar):
+    # Round-4 regression: "day" in 42 raised TypeError -> raw 500.
+    resp = client.post("/pipeline-completed", content=scalar.encode(),
+                       headers={"Content-Type": "application/json"})
+    assert resp.status_code == 400
+    assert resp.json()["error"] == "invalid_json"
+
+
+def test_null_valued_required_fields_is_422(client):
+    resp = client.post("/pipeline-completed", json={
+        "day": None, "today_index": None, "yesterday_index": "sales-x"})
+    assert resp.status_code == 422
+    assert set(resp.json()["fields"]) == {"day", "today_index"}
+
+
 def test_missing_required_fields_is_422(client):
     resp = client.post("/pipeline-completed", json={"garbage": True})
     assert resp.status_code == 422

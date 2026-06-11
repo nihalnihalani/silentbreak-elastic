@@ -19,7 +19,7 @@ Judging window Jun 22 – Jul 6: the live demo must survive it unattended.
 | 6 | Devpost kit final (only video URL placeholder allowed) | ✅ | docs/DEVPOST.md L101 video TODO only |
 | 7 | No critical devil's-advocate findings open | ⏳ | round 3 running |
 | 8 | Judging-criteria gap list: all MUST-FIX items closed | ⚠️ | gap list in (cycle 2); MUST-FIX 1–3 are video+Devpost-form = USER actions |
-| 9 | No CRITICAL breakage risk for judging window | ⏳ | research-google running |
+| 9 | No CRITICAL breakage risk for judging window | ✅ | cycle 3: gemini-3.5-flash GA no shutdown date; ADK 2.2.0 pinned; explicit model= makes us immune to ADK default-model change; Vertex rebrand is branding-only |
 
 ## Known constraints
 - Deploy: `gcloud --account neal.kakarot@gmail.com` only (other account = PERMISSION_DENIED).
@@ -49,6 +49,15 @@ Judging window Jun 22 – Jul 6: the live demo must survive it unattended.
   quantified impact sentence in DEVPOST.md + README.
 - Still running: devils-advocate (round 3), verifier (E2E audit), research-google.
 
+### Cycle 3 — 2026-06-11 23:00 IST (woken by research-google report)
+- Google-stack audit clean: no breaking changes affect us through judging window. Criterion 9 ✅.
+- Verified immunities: explicit model= in all 4 agents (adk_pipeline.py:244/263/274/283);
+  try/except import fallbacks already handle ADK 2.x renames.
+- Name-drop suggestions (ADK 2.0 GA, Gemini 3.5 Flash GA, platform rebrand) routed to builder-polish
+  to avoid two writers on README/DEVPOST.
+- Still running: devils-advocate, verifier, builder-polish.
+
 ## Push log
 - Cycle 1: LOOP_STATE.md baseline.
 - Cycle 2: judging-criteria findings + state update.
+- Cycle 3: Google-stack audit clean; criterion 9 green.

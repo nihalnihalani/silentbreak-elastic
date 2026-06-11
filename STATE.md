@@ -1,7 +1,25 @@
-# SilentBreak Ship Loop — State
+# STATE — SilentBreak Ship Loop spine
 
-> Loop-engineering memory file (Cherny/Steinberger pattern: state lives outside the conversation).
-> Read first every cycle. Updated last every cycle. Every cycle ends in a pushed commit.
+> Read first every tick, updated last every tick. Intent anchors: VISION.md, CLAUDE.md.
+> Loop spec: docs/SHIP_LOOP.md (v2, user-issued 2026-06-12 ~00:10 IST: adds Reviewer role,
+> VISION/CLAUDE anchors, halt/safety rules; STATE.md renamed from LOOP_STATE.md, history below).
+
+## Budget
+- Wall clock: started 22:42 IST Jun 11; hard stop 02:15 IST Jun 12 (Devpost deadline 02:30 IST).
+- Tick counter: cycles 1–8 complete under spec v1; tick 9 = first under spec v2.
+- Safety triggers armed: same-error×3, empty-diff×2, destructive-op stop.
+
+## Open tasks (priority order)
+1. F4 fix (unhashable run_id 500) — implemented, 52/52 green, pushed 10033f9, deployed; verify live.
+2. Devil's-advocate round-7 re-attack + formal sign-off (criterion 7).
+3. USER-ONLY: record demo video (docs/DEMO_SCRIPT.md, ≤2:40), fill URLs, submit Devpost form,
+   upload gallery images. Loop cannot close these.
+
+## Devil's-advocate objection ledger (address or reject explicitly)
+- R3-F1 webhook 500 → ADDRESSED (b8df4af + dedca0b, live-verified). CLOSED by advocate.
+- R3-F2 single-operator collision → ADDRESSED (README note, 7ade0e9). CLOSED by advocate.
+- R5-F3 HITL endpoints 500 on non-dict → ADDRESSED (e90a20c, live-verified 00007-6hr). CLOSED.
+- R6-F4 unhashable run_id 500 → ADDRESSED (10033f9), deployed, awaiting re-attack.
 
 ## Goal
 Make the SilentBreak hackathon submission production-ready, end-to-end verified, and traceable
@@ -116,3 +134,5 @@ Judging window Jun 22 – Jul 6: the live demo must survive it unattended.
   behaves as empty body (preserves UI empty-POST semantics). Repo-wide grep: all 3 sites
   guarded — defect CLASS closed. 9 regression tests (3 endpoints × 3 payloads); suite 43/43.
 - Deploy in flight (bg bp4file31). Next: live-verify all 4 endpoints, advocate round 6.
+- Deploy LANDED: revision silentbreak-00007-6hr. Live-verified: 9/9 HITL scalar/list probes
+  → 404 no_such_run (correct empty-body semantics); webhook 400; healthz 200. Round 6 requested.

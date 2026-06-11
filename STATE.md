@@ -69,6 +69,20 @@ mock revision silentbreak-00008-tc7 and stop. Rollback is one update-traffic cal
   MCP will be UNAUTHENTICATED (image has no inbound-auth option) — flagged, accepted demo risk.
 - Reviewer spawned (invariants + lock mechanics + suite re-run, 15-min box).
 
+## Ticks 15–17 — 00:37–01:10 IST: review approved, infra taken over and completed
+- Reviewer: APPROVE (invariants verified incl. event-loop-level concurrency check of arming
+  serialization; 3 non-blocking notes logged). Merged + pushed cc4a830 (69/69, demo exit 0).
+- 01:00 checkpoint: builder-infra silent, MCP undeployed → TEAM LEAD TOOK OVER infra:
+  - ES verified green (cluster silentbreak, 9.4.2, auth works); API key minted → secret
+    silentbreak-es-api-key; verified.
+  - MCP first deploy FAILED: exec format error — builder-infra's mirror was ARM64 (Apple
+    Silicon docker pull). Fixed via Cloud Build server-side mirror (amd64, 19s) →
+    mcp-elasticsearch:amd64; redeployed with --args http,--address,0.0.0.0:8080.
+  - MCP VERIFIED: /ping → Ready; tools/list → esql/get_mappings/search. Task #6 closed.
+- Tagged real revision deploying (--no-traffic --tag real) with full env wiring:
+  SILENTBREAK_MODE=real, ES_URL+ELASTIC_API_KEY(secret), MCP_URL, Vertex ADC triple.
+- Next: triple E2E on tagged URL → malformed matrix → advocate re-attack → flip.
+
 ## Goal
 Make the SilentBreak hackathon submission production-ready, end-to-end verified, and traceable
 before the **hard stop: 2026-06-12 02:15 IST** (Devpost deadline Jun 11, 2:00 PM PDT = 02:30 IST).

@@ -55,6 +55,20 @@ mock revision silentbreak-00008-tc7 and stop. Rollback is one update-traffic cal
 - Next: reviewer on builder-app diff → merge → deploy --no-traffic --tag real → triple E2E
   → malformed-matrix re-run → advocate re-attack → traffic flip → honesty sweep README/DEVPOST.
 
+## Ticks 12–14 — 23:45–00:20 IST
+- Tick 12: mid-progress audit caught builder-app red (6 webhook regressions broken, suite 314s);
+  sent gate-blocker evidence. Tick 13: clock-check nudges with hard 30-min landing deadline.
+- Tick 14: builder-app LANDED — 69 tests green in 12.5s (verified independently), docker build
+  + zero-creds mock boot verified; auto-arm inside run lock, incidents preserved, budget fallback
+  honestly labeled. Deviations accepted: conftest global-state reset (fixes latent test leak),
+  reset(include_system=False) for incident preservation. Real-mode E2E deferred to tagged revision.
+- builder-app worked in MAIN TREE not a worktree (flagged honestly) — diff sits uncommitted
+  pending reviewer verdict; nothing merges red or unreviewed.
+- builder-infra: images mirrored to AR (805MB ES layer via crane after docker push stalled);
+  MCP pinned to digest sha256:886bb1c3…; ETA ~00:34 for both services + API key + verification.
+  MCP will be UNAUTHENTICATED (image has no inbound-auth option) — flagged, accepted demo risk.
+- Reviewer spawned (invariants + lock mechanics + suite re-run, 15-min box).
+
 ## Goal
 Make the SilentBreak hackathon submission production-ready, end-to-end verified, and traceable
 before the **hard stop: 2026-06-12 02:15 IST** (Devpost deadline Jun 11, 2:00 PM PDT = 02:30 IST).

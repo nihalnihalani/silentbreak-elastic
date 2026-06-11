@@ -34,6 +34,27 @@ REMAINING — USER-ONLY (the loop cannot do these; deadline 02:30 IST):
 3. Submit/confirm the Devpost form itself (paste docs/DEVPOST.md content) + upload gallery images
    (docs/img/ui-examination.gif, ui-gate.png).
 
+---
+
+# LOOP RESTARTED — 2026-06-11 23:20 IST: KILL-MOCK mission (user-ordered)
+Goal: hosted URL serves REAL mode (real ES + MCP + ADK/Gemini via Vertex ADC), surviving
+judging unattended. ABORT GATE: not verifiably green by 01:45 IST → route traffic back to
+mock revision silentbreak-00008-tc7 and stop. Rollback is one update-traffic call.
+
+## Tick 11 — 23:17–23:30 IST: recon + fan-out
+- Recon: real mode currently points at LOCAL docker (ES_URL/MCP_URL localhost defaults);
+  no Elastic Cloud creds anywhere; GCP project has zero secrets; compute API not enabled.
+- DECISION: all-Cloud-Run architecture — silentbreak-es (ES 9.4.2, security enabled,
+  password+API key in Secret Manager) + silentbreak-mcp (http mode) in the same project.
+  No trial expiry (the mock advantage, preserved); demo world disposable so vandalism
+  self-heals via auto-arm. Images must be mirrored through Artifact Registry (Cloud Run
+  can't pull docker.elastic.co).
+- Spawned: builder-infra (task #6, gcloud-only) ∥ builder-app (task #7, isolated worktree:
+  full-deps Dockerfile, server-side auto-arm so every judge click yields a full examination,
+  per-IP rate limit + daily Gemini budget with honest deterministic fallback).
+- Next: reviewer on builder-app diff → merge → deploy --no-traffic --tag real → triple E2E
+  → malformed-matrix re-run → advocate re-attack → traffic flip → honesty sweep README/DEVPOST.
+
 ## Goal
 Make the SilentBreak hackathon submission production-ready, end-to-end verified, and traceable
 before the **hard stop: 2026-06-12 02:15 IST** (Devpost deadline Jun 11, 2:00 PM PDT = 02:30 IST).

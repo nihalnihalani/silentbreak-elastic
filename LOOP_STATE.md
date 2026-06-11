@@ -107,3 +107,12 @@ Judging window Jun 22 – Jul 6: the live demo must survive it unattended.
 - Redeploy LANDED: revision silentbreak-00006-hf2, 100% traffic. Live-verified all demanded
   checks: '42'/'null'/'true' → 400 invalid_json; null-valued keys → 422 missing_fields;
   healthz 200. CI green on dedca0b. Devils-advocate round-5 re-attack requested.
+
+### Cycle 8 — 2026-06-12 00:00 IST (woken by devils-advocate round 5: NO sign-off, F3 found)
+- Round 5 verdict: /pipeline-completed CLOSED (~18 payload shapes, zero 500s). NEW F3:
+  same non-dict-JSON defect class on /api/approve, /api/reject, /api/reverse (the HITL
+  centerpiece) — body.get() on scalar/list → AttributeError → 500. Verified live by advocate.
+- FIXED (e90a20c): isinstance guard at both remaining request.json() sites; non-dict body
+  behaves as empty body (preserves UI empty-POST semantics). Repo-wide grep: all 3 sites
+  guarded — defect CLASS closed. 9 regression tests (3 endpoints × 3 payloads); suite 43/43.
+- Deploy in flight (bg bp4file31). Next: live-verify all 4 endpoints, advocate round 6.

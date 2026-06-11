@@ -1,0 +1,40 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.4.2
+    container_name: silentbreak-es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - cluster.name=silentbreak
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:9200/_cluster/health | grep -Eq '\"status\":\"(yellow|green)\"'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 15s
+
+  elastic-mcp:
+    image: docker.elastic.co/mcp/elasticsearch:latest
+    container_name: silentbreak-mcp
+    command: http
+    environment:
+      # Security is disabled on the dev ES node; these dummy credentials are
+      # ignored by ES but satisfy the MCP server's configuration requirements.
+      - ES_URL=http://elasticsearch:9200
+      - ES_USERNAME=elastic
+      - ES_PASSWORD=changeme
+    ports:
+      - "8080:8080"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    # No container healthcheck: the image ships no wget/curl. Liveness is the
+    # plain-HTTP `GET :8080/ping` -> "Ready", polled from the host (smoke.sh).

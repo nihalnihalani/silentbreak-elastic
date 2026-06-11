@@ -1,9 +1,8 @@
-# The mock demo runs on the Python stdlib — no install needed:
-#     python scripts/run_demo.py
-#
-# Install these for real mode (Elastic MCP + Gemini + Cloud Run webhook):
-fastapi>=0.110
-uvicorn>=0.29
-elasticsearch>=8.13
-google-genai>=0.3
+# Mock demo needs nothing: `python scripts/run_demo.py` is stdlib-only.
+fastapi>=0.115
+uvicorn>=0.30
+elasticsearch>=9.0,<10
+google-adk>=2.2.0,<3
+google-genai>=2.0
 python-dotenv>=1.0
+mcp>=1.0

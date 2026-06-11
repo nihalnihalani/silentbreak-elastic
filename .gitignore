@@ -17,5 +17,7 @@ out/
 # Logs / OS
 *.log
 .DS_Store
+# ADK session store
+sessions.db
 # Agent Builder / GCP local
 .gcloud/

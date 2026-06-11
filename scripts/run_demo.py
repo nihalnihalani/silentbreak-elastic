@@ -18,6 +18,7 @@ import config
 from integrations.elastic_client import ElasticClient
 from agents import orchestrator
 from agents import guardian
+from integrations.approval import registry
 
 random.seed(42)
 HEALTHY_DAYS = [f"2026-05-{d:02d}" for d in range(1, 31)]
@@ -79,6 +80,8 @@ def main():
     today_index = config.partition_index(TODAY)
     client.index_rows(today_index, make_corrupted_partition())
     client.set_alias(config.ALIAS, today_index)  # consumers now read the poison
+    if hasattr(client, "index_status"):          # the SUCCESS lie the Sentinel reads
+        client.index_status({"day": TODAY, "run": "#4471", "status": "SUCCESS"})
 
     print(f"\n[pipeline] run #4471 — SUCCESS ✓   (alias {config.ALIAS} -> {today_index})")
     print(f"[finance ] dashboard reads revenue from `{config.REVENUE_FIELD}` via the alias...\n")
@@ -86,7 +89,9 @@ def main():
     event = {"day": TODAY, "today_index": today_index,
              "yesterday_index": config.partition_index(YESTERDAY),
              "pipeline_status": "SUCCESS"}
-    out = orchestrator.run(client, event)
+    # Quiet approver: mints a REAL single-use token through the same
+    # ApprovalRegistry the UI stamp uses; the story line prints in order below.
+    out = orchestrator.run(client, event, approver=lambda run_id, plan: registry.approve(run_id))
 
     if out["result"] == "green":
         print(out["message"]); return
@@ -94,6 +99,7 @@ def main():
     c, d, g, inc = out["contradiction"], out["diagnosis"], out["guardian"], out["incident"]
     print("[Sentinel ] " + c.headline())
     print("[RootCause] " + d.sentence)
+    print("[approval ] operator pressed APPROVE (auto-approved in CLI demo)")
     print("[Guardian ] action:")
     for a in g.actions:
         print("            - " + a)

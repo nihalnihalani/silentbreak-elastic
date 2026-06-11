@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SILENTBREAK — POLYGRAPH EXAMINATION No. 001</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-phase="idle">
+
+<!-- ink-texture filter for rubber stamps (zero external assets) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="ink">
+    <feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="2" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4"/>
+  </filter>
+  <filter id="ink-heavy">
+    <feTurbulence type="fractalNoise" baseFrequency="0.18" numOctaves="3" seed="11" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="4.5"/>
+  </filter>
+</svg>
+
+<header id="masthead">
+  <div class="mast-left">
+    <h1>SILENTBREAK</h1>
+    <div class="mast-sub">POLYGRAPH EXAMINATION&nbsp;&middot;&nbsp;No.&nbsp;001&nbsp;&middot;&nbsp;SUBJECT: <span id="mast-alias">revenue_current</span></div>
+  </div>
+  <div class="mast-mid">
+    <div class="badge"><span class="badge-k">MODE</span><span class="badge-v" id="badge-mode">PROBING&hellip;</span></div>
+    <div class="badge"><span class="badge-k">ENGINE</span><span class="badge-v" id="badge-engine">&ndash;</span></div>
+  </div>
+  <div class="status-tile" id="status-tile">
+    <div class="tile-label">PIPELINE SELF-REPORT</div>
+    <div class="tile-value" id="status-value">NO RUN ON RECORD</div>
+    <div class="tile-note" id="restore-note" hidden>ALIAS RESTORED &middot; REVERSIBILITY PROVEN</div>
+    <div class="stamp-overlay" id="contradiction-stamp" hidden>
+      <span class="co-main">CONTRADICTION</span>
+      <span class="co-sub">DECEPTION INDICATED</span>
+    </div>
+  </div>
+</header>
+
+<section id="chart-section" aria-label="Strip chart: live metric needles">
+  <canvas id="strip"></canvas>
+</section>
+
+<main id="mid">
+  <section id="report-panel">
+    <div class="panel-head"><span>EXAMINER'S REPORT</span><span class="panel-head-r" id="report-clock"></span></div>
+    <div id="report-body" aria-live="polite"></div>
+  </section>
+
+  <section id="gate-panel">
+    <div class="panel-head"><span>OPERATOR GATE</span><span class="panel-head-r">HUMAN IN THE LOOP</span></div>
+
+    <div id="gate-idle">
+      <div class="seal-box">
+        <div class="seal-ring">SEAL</div>
+        <p>NO ACTION PENDING.<br>THE EXAMINER DOES NOT ACT ALONE.<br>MUTATIONS REQUIRE A STAMPED APPROVAL.</p>
+      </div>
+    </div>
+
+    <div id="gate-live" hidden>
+      <div class="gate-title">PROPOSED REMEDIATION</div>
+      <ol id="plan"></ol>
+      <div class="gate-impact" id="gate-impact"></div>
+
+      <div class="stamp-well" id="stamp-well">
+        <button id="approve-stamp" class="stamp" aria-label="Press and hold to approve quarantine">
+          <svg class="ring" viewBox="0 0 168 168" aria-hidden="true">
+            <circle class="ring-bg" cx="84" cy="84" r="78"/>
+            <circle class="ring-fg" id="ring-fg" cx="84" cy="84" r="78"/>
+          </svg>
+          <span class="stamp-face">APPROVE<small>HOLD TO STAMP</small></span>
+        </button>
+        <button id="reject-btn" type="button">REJECT</button>
+      </div>
+
+      <div id="imprint" class="imprint" hidden>
+        <span class="imprint-main">QUARANTINE<br>APPROVED</span>
+        <span class="imprint-meta" id="imprint-meta"></span>
+      </div>
+      <div id="veto-mark" class="veto-mark" hidden>EXAMINATION VETOED<span>NO MUTATION WAS PERFORMED</span></div>
+    </div>
+  </section>
+</main>
+
+<section id="teletype" aria-label="Downstream teletype">
+  <div class="tt-head">DOWNSTREAM CONSUMER &middot; LIVE REVENUE QUERY</div>
+  <div id="tt-lines"></div>
+</section>
+
+<footer id="controls">
+  <button id="run-btn" type="button" disabled>RUN EXAMINATION</button>
+  <button id="replay-btn" type="button" hidden>REPLAY RECORDED EXAMINATION</button>
+  <button id="reverse-btn" type="button" disabled aria-label="Press and hold to reverse the alias flip">
+    <span class="hold-bar" id="rev-bar"></span>
+    <span class="rev-label">REVERSE ALIAS &middot; HOLD</span>
+  </button>
+  <div id="phase-readout">PHASE: IDLE</div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

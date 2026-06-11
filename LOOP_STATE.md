@@ -18,7 +18,7 @@ Judging window Jun 22 – Jul 6: the live demo must survive it unattended.
 | 5 | README complete (commands run, links/images resolve) | ⏳ | verifier running |
 | 6 | Devpost kit final (only video URL placeholder allowed) | ✅ | docs/DEVPOST.md L101 video TODO only |
 | 7 | No critical devil's-advocate findings open | ⏳ | round 3 running |
-| 8 | Judging-criteria gap list: all MUST-FIX items closed | ⏳ | research-hackathon running |
+| 8 | Judging-criteria gap list: all MUST-FIX items closed | ⚠️ | gap list in (cycle 2); MUST-FIX 1–3 are video+Devpost-form = USER actions |
 | 9 | No CRITICAL breakage risk for judging window | ⏳ | research-google running |
 
 ## Known constraints
@@ -40,5 +40,15 @@ Judging window Jun 22 – Jul 6: the live demo must survive it unattended.
 - Created team + tasks #1–#4; spawned 4 agents (2 researchers, devil's advocate, verifier).
 - Next: triage findings as they arrive, spawn builders for MUST-FIX items, re-verify, push.
 
+### Cycle 2 — 2026-06-11 22:55 IST (woken by research-hackathon report)
+- Official judging criteria confirmed (rapid-agent.devpost.com/rules): 4 equal criteria; Stage One is
+  pass/fail on submission requirements incl. **demo video ≤3 min** (our only missing hard requirement).
+- MUST-FIX (user actions, notified via terminal push): (1) record video per docs/DEMO_SCRIPT.md, aim ≤2:40;
+  (2) fill video URL at DEVPOST.md:101 + README:187; (3) confirm Devpost form actually submitted.
+- NICE-TO-HAVE delegated to builder-polish: rendered architecture diagram (keep ASCII in <details>),
+  quantified impact sentence in DEVPOST.md + README.
+- Still running: devils-advocate (round 3), verifier (E2E audit), research-google.
+
 ## Push log
-- Cycle 1: this commit (LOOP_STATE.md baseline).
+- Cycle 1: LOOP_STATE.md baseline.
+- Cycle 2: judging-criteria findings + state update.

@@ -10,7 +10,7 @@
 
 **Live demo:** https://silentbreak-941948267289.us-central1.run.app (mock mode, zero secrets, fully interactive — press RUN EXAMINATION)
 
-A human-overseen remediation agent built for the Google Cloud Rapid Agent Hackathon (Elastic partner track), on the Gemini + Google Cloud Agent Builder stack (ADK 2.x) and Elastic's MCP tooling. It detects the contradiction between a pipeline's green status and its red data, diagnoses the exact schema mutation, presents the evidence, and only after a human presses-and-holds the APPROVE stamp does it quarantine the poisoned partition and flip the `revenue_current` alias to the last known good index. Then it repairs the quarantined rows into a clean partition, and one atomic call reverses everything.
+A human-overseen remediation agent built for the Google Cloud Rapid Agent Hackathon (Elastic partner track), on **Google ADK 2.0 (GA May 2026)** — `SequentialAgent` multi-agent orchestration with human-in-the-loop — powered by **Gemini 3.5 Flash (GA at Google I/O 2026)** on the **Gemini Enterprise Agent Platform (formerly Vertex AI)**, plus Elastic's MCP tooling. It detects the contradiction between a pipeline's green status and its red data, diagnoses the exact schema mutation, presents the evidence, and only after a human presses-and-holds the APPROVE stamp does it quarantine the poisoned partition and flip the `revenue_current` alias to the last known good index. Then it repairs the quarantined rows into a clean partition, and one atomic call reverses everything.
 
 ```
 $ python3 scripts/run_demo.py       # zero dependencies, 10 seconds, the whole story
@@ -59,6 +59,11 @@ That runtime schema discovery is doing more work than it sounds: `integrations/m
 
 ## Architecture
 
+![SilentBreak architecture: the Polygraph UI and operator drive a FastAPI app that selects the ADK or deterministic engine; both fan out to Elastic MCP for reads and elasticsearch-py for token-gated writes, over Elasticsearch 9.4](docs/img/architecture.png)
+
+<details>
+<summary>Same diagram as ASCII (for terminal readers)</summary>
+
 ```
                        POST /api/run                 press-and-hold stamp
   Polygraph UI  ---------------------->  FastAPI  <--------------------  operator
@@ -90,6 +95,8 @@ That runtime schema discovery is doing more work than it sounds: `integrations/m
                   silentbreak-{status,baselines,incidents}  <-- agent memory,
                   written by Scribe, recalled by Sentinel on the next run
 ```
+
+</details>
 
 ## Quickstart A: mock, 10 seconds, zero setup
 
@@ -174,7 +181,7 @@ Roadmap (not implemented, listed honestly):
 - Prompt tuning for the Scribe's report prose on the live Gemini engine.
 - Elastic Agent Builder Workflows as an alternative actuator (today the actuator is direct elasticsearch-py).
 - Multi-metric incident correlation across days, and notification fan-out (Slack/email) after the operator decision.
-- Auth on the web UI (the hosted demo is intentionally open and stateless).
+- Auth on the web UI (the hosted demo is intentionally open and stateless). Until then the hosted demo is single-operator by design: concurrent visitors share one examination run, so a second visitor may see `409 run_active` until the active run resolves (stale runs are reaped after 180s).
 
 ## The 3-minute demo video
 

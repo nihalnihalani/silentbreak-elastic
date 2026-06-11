@@ -17,7 +17,7 @@ Judging window Jun 22 – Jul 6: the live demo must survive it unattended.
 | 4 | Full live demo path verified end-to-end | ⏳ | verifier running |
 | 5 | README complete (commands run, links/images resolve) | ⏳ | verifier running |
 | 6 | Devpost kit final (only video URL placeholder allowed) | ✅ | docs/DEVPOST.md L101 video TODO only |
-| 7 | No critical devil's-advocate findings open | ⏳ | round 3 running |
+| 7 | No critical devil's-advocate findings open | ⚠️ | round 3 done: F1 (webhook 500) FIXED locally + 3 regression tests — needs deploy; F2 (single-operator collision) README note → builder-polish |
 | 8 | Judging-criteria gap list: all MUST-FIX items closed | ⚠️ | gap list in (cycle 2); MUST-FIX 1–3 are video+Devpost-form = USER actions |
 | 9 | No CRITICAL breakage risk for judging window | ✅ | cycle 3: gemini-3.5-flash GA no shutdown date; ADK 2.2.0 pinned; explicit model= makes us immune to ADK default-model change; Vertex rebrand is branding-only |
 
@@ -57,7 +57,19 @@ Judging window Jun 22 – Jul 6: the live demo must survive it unattended.
   to avoid two writers on README/DEVPOST.
 - Still running: devils-advocate, verifier, builder-polish.
 
+### Cycle 4 — 2026-06-11 23:05 IST (woken by devils-advocate round 3)
+- F1 REAL: /pipeline-completed raw 500 on malformed input (only unguarded endpoint).
+  FIXED app/main.py: try/except json → 400 invalid_json; missing keys → 422 missing_fields.
+  Added tests/test_webhook.py (3 regression tests). Suite: 30/30 green.
+- F2 REAL (defensible-by-design): singleton run-state + max-instances 1 → concurrent visitors collide.
+  Decision: no API change 3h before deadline (UI depends on empty-body POST semantics);
+  honest one-line README note delegated to builder-polish (owns README).
+- Solid per round 3: no secrets, version claims real, images/links resolve, mock demo repeatable,
+  zero external dependencies during judging (mock mode), live URL fast.
+- PENDING: deploy fixed image to Cloud Run after builder-polish lands (bundle one deploy).
+
 ## Push log
 - Cycle 1: LOOP_STATE.md baseline.
 - Cycle 2: judging-criteria findings + state update.
 - Cycle 3: Google-stack audit clean; criterion 9 green.
+- Cycle 4: webhook 500 fix + 3 regression tests (30/30 green).

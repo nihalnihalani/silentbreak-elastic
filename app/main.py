@@ -365,7 +365,13 @@ async def pipeline_completed(request: Request):
     """Compat webhook: a pipeline reports completion; SilentBreak examines it."""
     if (rec := active_record()) is not None and (resp := reap_or_409(rec)) is not None:
         return resp
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid_json"}, status_code=400)
+    missing = [k for k in ("day", "today_index", "yesterday_index") if k not in body]
+    if missing:
+        return JSONResponse({"error": "missing_fields", "fields": missing}, status_code=422)
     event = {
         "day": body["day"],
         "today_index": body["today_index"],
